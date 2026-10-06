@@ -1,0 +1,30 @@
+# Secrets and local machine configuration
+.env
+.env.*
+!.env.example
+local.properties
+*.jks
+*.keystore
+android/app/google-services.json
+
+# Android Studio / Gradle
+.idea/
+.gradle/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Node.js
+**/node_modules/
+**/dist/
+npm-debug.log*
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+*.swp
+
+# Codex/Superpowers task state and internal planning notes
+.superpowers/
+docs/superpowers/
