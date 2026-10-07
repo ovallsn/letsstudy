@@ -7,9 +7,58 @@ import com.oriol.letsstudy.network.AnalyzeOfferResponseDto
 import com.oriol.letsstudy.network.FeedbackResponseDto
 import com.oriol.letsstudy.network.MoreQuestionsResponseDto
 import com.oriol.letsstudy.network.QuestionDto
+import com.oriol.letsstudy.domain.ConceptLesson
+import com.oriol.letsstudy.domain.ConceptLessonSection
+import com.oriol.letsstudy.domain.ConceptLessonTerm
 import java.util.UUID
 
 object StudyOutputParser {
+    fun parseConceptLesson(text: String): ConceptLesson {
+        if (text.length > MAX_CONCEPT_LESSON_CHARS) throw InvalidStudyOutputException("The topic lesson was too long. Please try again.")
+        val json = parseObject(text)
+        json.requireKeysExactly(setOf("sections", "keyTerms", "rememberThis"))
+
+        val sectionValues = json.get("sections")
+        if (sectionValues == null || !sectionValues.isJsonArray || sectionValues.asJsonArray.size() != REQUIRED_LESSON_SECTION_IDS.size) {
+            throw InvalidStudyOutputException("The topic lesson is missing a required section.")
+        }
+        val sections = sectionValues.asJsonArray.map { value ->
+            if (!value.isJsonObject) throw InvalidStudyOutputException()
+            val section = value.asJsonObject
+            section.requireKeysExactly(setOf("id", "title", "content"))
+            ConceptLessonSection(
+                id = section.requiredString("id", MAX_SECTION_ID_CHARS),
+                title = section.requiredString("title", MAX_SECTION_TITLE_CHARS),
+                content = section.requiredString("content", MAX_SECTION_CONTENT_CHARS),
+            )
+        }
+        if (sections.map { it.id } != REQUIRED_LESSON_SECTION_IDS) {
+            throw InvalidStudyOutputException("The topic lesson has an invalid section order.")
+        }
+
+        val termValues = json.get("keyTerms")
+        if (termValues == null || !termValues.isJsonArray || termValues.asJsonArray.size() !in MIN_LESSON_TERMS..MAX_LESSON_TERMS) {
+            throw InvalidStudyOutputException("The topic lesson must include 2 to 5 key terms.")
+        }
+        val terms = termValues.asJsonArray.map { value ->
+            if (!value.isJsonObject) throw InvalidStudyOutputException()
+            val term = value.asJsonObject
+            term.requireKeysExactly(setOf("term", "definition"))
+            ConceptLessonTerm(
+                term = term.requiredString("term", MAX_TERM_CHARS),
+                definition = term.requiredString("definition", MAX_TERM_DEFINITION_CHARS),
+            )
+        }
+        if (terms.map { it.term.lowercase() }.toSet().size != terms.size) {
+            throw InvalidStudyOutputException("The topic lesson repeated a key term.")
+        }
+        return ConceptLesson(
+            sections = sections,
+            keyTerms = terms,
+            rememberThis = json.requiredString("rememberThis", MAX_REMEMBER_THIS_CHARS),
+        )
+    }
+
     fun parseInitialBatch(text: String): AnalyzeOfferResponseDto {
         val json = parseObject(text)
         val sourceReadable = json.requiredBoolean("sourceReadable")
@@ -86,6 +135,10 @@ object StudyOutputParser {
         return value.asString.trim().takeIf(String::isNotBlank)
             ?.takeIf { it.length <= maxChars }
             ?: throw InvalidStudyOutputException("The model response has an invalid '$key' value.")
+    }
+
+    private fun JsonObject.requireKeysExactly(expected: Set<String>) {
+        if (keySet() != expected) throw InvalidStudyOutputException("The topic lesson has an invalid structure.")
     }
 
     private fun JsonObject.requiredBoolean(key: String): Boolean {
@@ -179,6 +232,16 @@ object StudyOutputParser {
     private const val MAX_FEEDBACK_CHARS = 1_200
     private const val MIN_WORDS_FOR_SIMILARITY = 4
     private const val NEAR_DUPLICATE_THRESHOLD = 0.9
+    private val REQUIRED_LESSON_SECTION_IDS = listOf("what_it_is", "how_it_works", "example", "why_it_matters")
+    private const val MAX_CONCEPT_LESSON_CHARS = 15_000
+    private const val MAX_SECTION_ID_CHARS = 32
+    private const val MAX_SECTION_TITLE_CHARS = 100
+    private const val MAX_SECTION_CONTENT_CHARS = 2_500
+    private const val MIN_LESSON_TERMS = 2
+    private const val MAX_LESSON_TERMS = 5
+    private const val MAX_TERM_CHARS = 90
+    private const val MAX_TERM_DEFINITION_CHARS = 450
+    private const val MAX_REMEMBER_THIS_CHARS = 500
 }
 
 class InvalidStudyOutputException(

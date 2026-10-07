@@ -52,10 +52,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.oriol.letsstudy.ai.StudyOutputParser
 import com.oriol.letsstudy.data.StudyQuestionEntity
 import com.oriol.letsstudy.data.StudySessionEntity
+import com.oriol.letsstudy.domain.ConceptLesson
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -75,15 +78,29 @@ fun PracticeScreen(
     onToggleReview: () -> Unit,
     onDismissError: () -> Unit,
     errorMessage: String?,
+    isConceptLessonLoading: Boolean = false,
+    conceptLessonErrorCode: String? = null,
+    onRequestConceptLesson: () -> Unit = {},
 ) {
+    val lessonCopy = remember(session.practiceLanguage) { ConceptLessonUiCopy.forLanguage(session.practiceLanguage) }
+    val conceptLesson = remember(question.conceptLessonJson) {
+        question.conceptLessonJson.takeIf(String::isNotBlank)?.let { raw ->
+            runCatching { StudyOutputParser.parseConceptLesson(raw) }.getOrNull()
+        }
+    }
     val options = remember(question.optionsJson) {
         runCatching { Gson().fromJson<List<String>>(question.optionsJson, object : TypeToken<List<String>>() {}.type) }.getOrDefault(emptyList())
     }
     if (options.size == 4 && question.correctOptionIndex in 0..3) {
-        MultipleChoiceScreen(session, question, options, onBack, onSelectChoice, onResetChoice, onToggleReview, questionNumber, questionCount, onPreviousQuestion, onNextQuestion)
+        MultipleChoiceScreen(
+            session, question, options, onBack, onSelectChoice, onResetChoice, onToggleReview,
+            questionNumber, questionCount, onPreviousQuestion, onNextQuestion,
+            conceptLesson, lessonCopy, isConceptLessonLoading, conceptLessonErrorCode, onRequestConceptLesson,
+        )
         return
     }
     var answer by rememberSaveable(question.id) { mutableStateOf(question.learnerAnswer) }
+    var showConceptLesson by rememberSaveable(question.id) { mutableStateOf(false) }
     val strengths = question.strengths.lines().filter(String::isNotBlank)
     val missing = question.missingPoints.lines().filter(String::isNotBlank)
 
@@ -121,6 +138,18 @@ fun PracticeScreen(
                     Text("Topic: ${question.topic}", style = MaterialTheme.typography.bodyMedium, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 8.dp))
                 }
             }
+
+            LessonActionCard(
+                hasLesson = conceptLesson != null,
+                isLoading = isConceptLessonLoading,
+                errorMessage = lessonCopy.errorFor(conceptLessonErrorCode),
+                copy = lessonCopy,
+                onClick = {
+                    showConceptLesson = true
+                    if (conceptLesson == null) onRequestConceptLesson()
+                },
+                onRetry = onRequestConceptLesson,
+            )
 
             Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), modifier = Modifier.padding(top = 18.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
@@ -179,6 +208,19 @@ fun PracticeScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
+    if (showConceptLesson) {
+        ConceptLessonSheet(
+            lesson = conceptLesson,
+            isLoading = isConceptLessonLoading,
+            errorMessage = lessonCopy.errorFor(conceptLessonErrorCode),
+            copy = lessonCopy,
+            questionNumber = questionNumber,
+            questionCount = questionCount,
+            onDismiss = { showConceptLesson = false },
+            onRetry = onRequestConceptLesson,
+            onNextQuestion = { showConceptLesson = false; if (questionNumber < questionCount) onNextQuestion() else onBack() },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -195,9 +237,15 @@ private fun MultipleChoiceScreen(
     questionCount: Int,
     onPreviousQuestion: () -> Unit,
     onNextQuestion: () -> Unit,
+    conceptLesson: ConceptLesson?,
+    lessonCopy: ConceptLessonUiCopy,
+    isConceptLessonLoading: Boolean,
+    conceptLessonErrorCode: String?,
+    onRequestConceptLesson: () -> Unit,
 ) {
     var selected by remember(question.id) { mutableStateOf(question.selectedOptionIndex) }
     var showExplanation by remember(question.id) { mutableStateOf(false) }
+    var showConceptLesson by rememberSaveable(question.id) { mutableStateOf(false) }
     Scaffold(
         containerColor = LetsStudyColors.Canvas,
         bottomBar = { PracticeFooter(questionNumber, questionCount, onPreviousQuestion, onNextQuestion, onBack, answered = selected >= 0) },
@@ -257,6 +305,17 @@ private fun MultipleChoiceScreen(
                     }
                 }
             }
+            LessonActionCard(
+                hasLesson = conceptLesson != null,
+                isLoading = isConceptLessonLoading,
+                errorMessage = lessonCopy.errorFor(conceptLessonErrorCode),
+                copy = lessonCopy,
+                onClick = {
+                    showConceptLesson = true
+                    if (conceptLesson == null) onRequestConceptLesson()
+                },
+                onRetry = onRequestConceptLesson,
+            )
             if (selected >= 0) {
                 val isCorrect = selected == question.correctOptionIndex
                 Card(
@@ -325,6 +384,18 @@ private fun MultipleChoiceScreen(
                 Text("Why it works", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp))
                 Text(question.explanation.ifBlank { "Review the role context and check the correct answer before relying on it." }, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 7.dp))
                 if (question.sourceBasis.isNotBlank()) Text("IN THIS ROLE  ${question.sourceBasis}", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 13.dp))
+                TextButton(
+                    onClick = {
+                        showExplanation = false
+                        showConceptLesson = true
+                        if (conceptLesson == null) onRequestConceptLesson()
+                    },
+                    modifier = Modifier.padding(top = 5.dp),
+                ) {
+                    Icon(Icons.Outlined.Lightbulb, null, Modifier.size(17.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (conceptLesson == null) lessonCopy.learnAction else lessonCopy.openAction)
+                }
                 Spacer(Modifier.height(14.dp))
                 }
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
@@ -338,6 +409,162 @@ private fun MultipleChoiceScreen(
                     }
                     TextButton(onClick = { showExplanation = false }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Stay on this question") }
                     Spacer(Modifier.height(10.dp))
+                }
+            }
+        }
+    }
+    if (showConceptLesson) {
+        ConceptLessonSheet(
+            lesson = conceptLesson,
+            isLoading = isConceptLessonLoading,
+            errorMessage = lessonCopy.errorFor(conceptLessonErrorCode),
+            copy = lessonCopy,
+            questionNumber = questionNumber,
+            questionCount = questionCount,
+            onDismiss = { showConceptLesson = false },
+            onRetry = onRequestConceptLesson,
+            onNextQuestion = { showConceptLesson = false; if (questionNumber < questionCount) onNextQuestion() else onBack() },
+        )
+    }
+}
+
+@Composable
+private fun LessonActionCard(
+    hasLesson: Boolean,
+    isLoading: Boolean,
+    errorMessage: String?,
+    copy: ConceptLessonUiCopy,
+    onClick: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    Card(
+        shape = RoundedCornerShape(19.dp),
+        colors = CardDefaults.cardColors(containerColor = LetsStudyColors.Warm),
+        border = androidx.compose.foundation.BorderStroke(1.dp, LetsStudyColors.Border),
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Lightbulb, null, tint = LetsStudyColors.Clay, modifier = Modifier.size(21.dp))
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(copy.lessonIntro, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text(copy.quotaNote, style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 3.dp))
+                }
+            }
+            if (errorMessage != null) {
+                Text(errorMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 10.dp))
+                TextButton(onClick = onRetry, enabled = !isLoading, modifier = Modifier.align(Alignment.End)) {
+                    if (isLoading) CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
+                    else Text(copy.retryAction)
+                }
+            } else {
+                Button(
+                    onClick = onClick,
+                    enabled = !isLoading,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = LetsStudyColors.Primary),
+                    modifier = Modifier.fillMaxWidth().padding(top = 11.dp).height(45.dp),
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(Modifier.size(17.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(copy.loading)
+                    } else {
+                        Icon(Icons.Outlined.Lightbulb, null, Modifier.size(17.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text(if (hasLesson) copy.openAction else copy.learnAction)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConceptLessonSheet(
+    lesson: ConceptLesson?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    copy: ConceptLessonUiCopy,
+    questionNumber: Int,
+    questionCount: Int,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit,
+    onNextQuestion: () -> Unit,
+) {
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = LetsStudyColors.Card,
+    ) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = screenHeight * 0.78f)
+                    .verticalScroll(rememberScrollState()).padding(horizontal = 23.dp),
+            ) {
+                Surface(color = LetsStudyColors.Mint, shape = CircleShape, modifier = Modifier.size(48.dp)) {
+                    androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Lightbulb, null, tint = LetsStudyColors.Primary, modifier = Modifier.size(25.dp))
+                    }
+                }
+                Text(copy.lessonTitle, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 13.dp))
+                Text(copy.lessonIntro, style = MaterialTheme.typography.bodyMedium, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 5.dp))
+                when {
+                    lesson != null -> {
+                        lesson.sections.forEach { section ->
+                            Text(section.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 21.dp))
+                            Text(section.content, style = MaterialTheme.typography.bodyMedium, lineHeight = 24.sp, modifier = Modifier.padding(top = 6.dp))
+                        }
+                        Text(copy.keyTermsTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 21.dp))
+                        lesson.keyTerms.forEach { term ->
+                            Column(Modifier.fillMaxWidth().padding(top = 9.dp)) {
+                                Text(term.term, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = LetsStudyColors.Primary)
+                                Text(term.definition, style = MaterialTheme.typography.bodyMedium, lineHeight = 23.sp, modifier = Modifier.padding(top = 2.dp))
+                            }
+                        }
+                        Card(
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = LetsStudyColors.Mint),
+                            modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+                        ) {
+                            Column(Modifier.padding(15.dp)) {
+                                Text(copy.rememberTitle, style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                                Text(lesson.rememberThis, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 5.dp))
+                            }
+                        }
+                    }
+                    isLoading -> Column(Modifier.fillMaxWidth().padding(vertical = 30.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = LetsStudyColors.Primary)
+                        Text(copy.loading, style = MaterialTheme.typography.bodyMedium, color = LetsStudyColors.Muted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp))
+                    }
+                    errorMessage != null -> Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(errorMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                        Button(onClick = onRetry, shape = RoundedCornerShape(14.dp), modifier = Modifier.padding(top = 12.dp)) { Text(copy.retryAction) }
+                    }
+                    else -> Text(copy.loading, style = MaterialTheme.typography.bodyMedium, color = LetsStudyColors.Muted, modifier = Modifier.padding(vertical = 30.dp))
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(copy.closeAction) }
+                Button(
+                    onClick = onNextQuestion,
+                    shape = RoundedCornerShape(15.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = LetsStudyColors.Primary),
+                    modifier = Modifier.weight(1f).height(49.dp),
+                ) {
+                    Text(if (questionNumber < questionCount) "Next question" else "Back to set")
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(17.dp))
                 }
             }
         }

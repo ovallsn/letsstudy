@@ -9,9 +9,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 interface FastQuestionGenerator {
     suspend fun generate(prompt: String): String
+
+    /** Optional deeper explanation, requested separately so normal question rounds use no extra quota. */
+    suspend fun generateLesson(prompt: String): String =
+        throw UnsupportedOperationException("Concept lessons are not supported by this generator.")
 }
 
-/** One request per round, through the project's free-tier Firebase AI Logic account. */
+/** Online question and optional lesson requests, through the app owner's Firebase AI Logic project. */
 class FirebaseFastQuestionGenerator : FastQuestionGenerator {
     private val questionSchema = Schema.obj(
         mapOf(
@@ -24,23 +28,51 @@ class FirebaseFastQuestionGenerator : FastQuestionGenerator {
             "sourceBasis" to Schema.string(),
         ),
     )
-    private val outputSchema = Schema.obj(
+    private val questionOutputSchema = Schema.obj(
         mapOf(
             "coveredTopicsSummary" to Schema.string(),
             "questions" to Schema.array(questionSchema),
         ),
     )
-    private val model by lazy {
+    private val lessonOutputSchema = Schema.obj(
+        mapOf(
+            "sections" to Schema.array(
+                Schema.obj(
+                    mapOf(
+                        "id" to Schema.string(),
+                        "title" to Schema.string(),
+                        "content" to Schema.string(),
+                    ),
+                ),
+            ),
+            "keyTerms" to Schema.array(
+                Schema.obj(
+                    mapOf(
+                        "term" to Schema.string(),
+                        "definition" to Schema.string(),
+                    ),
+                ),
+            ),
+            "rememberThis" to Schema.string(),
+        ),
+    )
+    private val model by lazy { createModel(questionOutputSchema) }
+    private val lessonModel by lazy { createModel(lessonOutputSchema) }
+
+    private fun createModel(schema: Schema) =
         Firebase.ai(backend = GenerativeBackend.googleAI()).generativeModel(
             modelName = "gemini-3.1-flash-lite",
             generationConfig = generationConfig {
                 responseMimeType = "application/json"
-                responseSchema = outputSchema
+                responseSchema = schema
             },
         )
-    }
 
     override suspend fun generate(prompt: String): String = withTimeoutOrNull(75_000L) {
         model.generateContent(prompt).text
     } ?: throw InvalidStudyOutputException("Fast online study took too long or returned no questions. Please try again.")
+
+    override suspend fun generateLesson(prompt: String): String = withTimeoutOrNull(75_000L) {
+        lessonModel.generateContent(prompt).text
+    } ?: throw InvalidStudyOutputException("The topic lesson took too long or returned no content. Please try again.")
 }

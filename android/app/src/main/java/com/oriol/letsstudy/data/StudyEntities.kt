@@ -43,4 +43,5 @@ data class StudyQuestionEntity(
     @ColumnInfo(defaultValue = "-1") val correctOptionIndex: Int = -1,
     @ColumnInfo(defaultValue = "''") val explanation: String = "",
     @ColumnInfo(defaultValue = "-1") val selectedOptionIndex: Int = -1,
+    @ColumnInfo(defaultValue = "''") val conceptLessonJson: String = "",
 )

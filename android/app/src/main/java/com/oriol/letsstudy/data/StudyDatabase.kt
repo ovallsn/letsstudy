@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [StudySessionEntity::class, StudyQuestionEntity::class], version = 2, exportSchema = false)
+@Database(entities = [StudySessionEntity::class, StudyQuestionEntity::class], version = 3, exportSchema = false)
 abstract class StudyDatabase : RoomDatabase() {
     abstract fun studyDao(): StudyDao
 
@@ -22,13 +22,18 @@ abstract class StudyDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE study_questions ADD COLUMN selectedOptionIndex INTEGER NOT NULL DEFAULT -1")
             }
         }
+        private val migration2To3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE study_questions ADD COLUMN conceptLessonJson TEXT NOT NULL DEFAULT ''")
+            }
+        }
 
         fun get(context: Context): StudyDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
                 StudyDatabase::class.java,
                 "roleready.db",
-            ).addMigrations(migration1To2).build().also { instance = it }
+            ).addMigrations(migration1To2, migration2To3).build().also { instance = it }
         }
     }
 }

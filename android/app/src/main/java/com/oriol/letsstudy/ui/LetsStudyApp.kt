@@ -171,6 +171,9 @@ fun LetsStudyApp(viewModel: LetsStudyViewModel) {
                     onToggleReview = { viewModel.toggleReview(selectedQuestion) },
                     onDismissError = viewModel::clearError,
                     errorMessage = state.errorMessage,
+                    isConceptLessonLoading = selectedQuestion.id in state.conceptLessonLoadingQuestionIds,
+                    conceptLessonErrorCode = state.conceptLessonErrorCodes[selectedQuestion.id],
+                    onRequestConceptLesson = viewModel::requestConceptLesson,
                 ) }
 
                 activeSession != null -> StudyScreen(

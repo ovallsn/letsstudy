@@ -8,6 +8,8 @@ import com.oriol.letsstudy.ai.StudyOutputSchemas
 import com.oriol.letsstudy.ai.StudyPrompts
 import com.oriol.letsstudy.ai.StudyTextGenerator
 import com.oriol.letsstudy.domain.AnswerFeedback
+import com.oriol.letsstudy.domain.ConceptLesson
+import com.oriol.letsstudy.domain.ConceptLessonPromptInput
 import com.oriol.letsstudy.domain.SourceKind
 import com.oriol.letsstudy.domain.StudyInput
 import com.oriol.letsstudy.network.AnalyzeOfferResponseDto
@@ -247,6 +249,53 @@ class StudyRepository(
     suspend fun resetChoice(question: StudyQuestionEntity) {
         require(question.correctOptionIndex in 0..3)
         dao.updateChoice(question.id, -1)
+    }
+
+    suspend fun getOrGenerateConceptLesson(
+        session: StudySessionEntity,
+        question: StudyQuestionEntity,
+    ): ConceptLesson {
+        require(question.sessionId == session.id) { "The question does not belong to this study session." }
+        var currentQuestion = dao.getQuestion(question.id)
+            ?: throw StudyGenerationException("QUESTION_UNAVAILABLE", "This question is no longer available.")
+        require(currentQuestion.sessionId == session.id) { "The question does not belong to this study session." }
+        if (currentQuestion.conceptLessonJson.isNotBlank()) {
+            try {
+                return StudyOutputParser.parseConceptLesson(currentQuestion.conceptLessonJson)
+            } catch (_: InvalidStudyOutputException) {
+                // An older/corrupt cache should not make its retry action permanently unusable.
+                currentQuestion = currentQuestion.copy(conceptLessonJson = "")
+                dao.updateQuestion(currentQuestion)
+            }
+        }
+
+        val generator = fastGenerator
+            ?: throw StudyGenerationException("SERVICE_UNAVAILABLE", "Fast online study is not configured on this device.")
+        val options = runCatching {
+            Gson().fromJson<List<String>>(currentQuestion.optionsJson, object : TypeToken<List<String>>() {}.type)
+        }.getOrDefault(emptyList())
+        val correctAnswer = options.getOrNull(currentQuestion.correctOptionIndex)
+            ?: currentQuestion.improvedReferenceAnswer.ifBlank { currentQuestion.referenceAnswer }
+        val prompt = StudyPrompts.conceptLesson(
+            ConceptLessonPromptInput(
+                language = session.practiceLanguage,
+                sourceContext = session.sourceContext,
+                question = currentQuestion.prompt,
+                topic = currentQuestion.topic,
+                options = options,
+                correctAnswer = correctAnswer,
+                explanation = currentQuestion.explanation.ifBlank { currentQuestion.reasoningFeedback },
+                sourceBasis = currentQuestion.sourceBasis,
+            ),
+        )
+        val output = generator.generateLesson(prompt)
+        val lesson = StudyOutputParser.parseConceptLesson(output)
+
+        // Merge only the new lesson into the freshest row so an answer changed during generation survives.
+        val latestQuestion = dao.getQuestion(question.id)
+            ?: throw StudyGenerationException("QUESTION_UNAVAILABLE", "This question is no longer available.")
+        dao.updateQuestion(latestQuestion.copy(conceptLessonJson = output))
+        return lesson
     }
 
     private suspend fun readSource(input: StudyInput): JobOfferSource = when (input.kind) {

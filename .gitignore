@@ -3,9 +3,15 @@
 .env.*
 !.env.example
 local.properties
+secrets.properties
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.pem
+*.key
 android/app/google-services.json
+GoogleService-Info.plist
 
 # Android Studio / Gradle
 .idea/

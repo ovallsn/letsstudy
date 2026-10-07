@@ -18,6 +18,7 @@ import com.oriol.letsstudy.data.JobOfferReader
 import com.oriol.letsstudy.data.StudyQuestionEntity
 import com.oriol.letsstudy.data.StudyRepository
 import com.oriol.letsstudy.data.StudySessionEntity
+import com.oriol.letsstudy.domain.ConceptLesson
 import com.oriol.letsstudy.data.StudyGenerationException
 import com.oriol.letsstudy.data.StudyGenerationProgress
 import com.oriol.letsstudy.domain.StudyInput
@@ -47,6 +48,8 @@ data class LetsStudyUiState(
     val modelState: ModelState = ModelState.NotDownloaded,
     val modelDownloadState: ModelDownloadState = ModelDownloadState.NotDownloaded,
     val generationProgress: StudyGenerationProgress? = null,
+    val conceptLessonLoadingQuestionIds: Set<String> = emptySet(),
+    val conceptLessonErrorCodes: Map<String, String> = emptyMap(),
 )
 
 class LetsStudyViewModel(application: Application) : AndroidViewModel(application) {
@@ -229,6 +232,49 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
             } catch (_: Exception) {
                 _uiState.update { it.copy(errorMessage = "Couldn't reset this question. Try again.") }
             }
+        }
+    }
+
+    fun requestConceptLesson() {
+        val state = _uiState.value
+        val session = state.activeSession ?: return
+        val question = state.selectedQuestion ?: return
+        if (question.conceptLessonJson.isNotBlank() || question.id in state.conceptLessonLoadingQuestionIds) return
+
+        _uiState.update {
+            it.copy(
+                conceptLessonLoadingQuestionIds = it.conceptLessonLoadingQuestionIds + question.id,
+                conceptLessonErrorCodes = it.conceptLessonErrorCodes - question.id,
+            )
+        }
+        viewModelScope.launch {
+            try {
+                repository.getOrGenerateConceptLesson(session, question)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _uiState.update { current ->
+                    current.copy(conceptLessonErrorCodes = current.conceptLessonErrorCodes + (question.id to conceptLessonErrorCode(error)))
+                }
+            } finally {
+                _uiState.update { current ->
+                    current.copy(conceptLessonLoadingQuestionIds = current.conceptLessonLoadingQuestionIds - question.id)
+                }
+            }
+        }
+    }
+
+    private fun conceptLessonErrorCode(error: Exception): String {
+        val text = error.message.orEmpty()
+        val className = error.javaClass.simpleName
+        return when {
+            error is IOException || text.contains("network", ignoreCase = true) || text.contains("internet", ignoreCase = true) ||
+                text.contains("unable to resolve host", ignoreCase = true) -> "NETWORK"
+            className.contains("Quota", ignoreCase = true) || text.contains("quota", ignoreCase = true) || text.contains("rate limit", ignoreCase = true) -> "QUOTA"
+            text.contains("App Check", ignoreCase = true) || text.contains("AppCheck", ignoreCase = true) -> "APP_CHECK"
+            text.contains("too long", ignoreCase = true) || className.contains("Timeout", ignoreCase = true) -> "TIMEOUT"
+            error is InvalidStudyOutputException -> "INVALID_RESPONSE"
+            else -> "SERVICE"
         }
     }
 
