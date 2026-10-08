@@ -38,6 +38,9 @@ enum class AppDestination {
     JOB_PREP,
     TOPIC,
     MATERIAL,
+    LANGUAGE_CHECK,
+    REVIEW_DUE,
+    LEADERBOARD,
 }
 
 private data class NavigationItem(

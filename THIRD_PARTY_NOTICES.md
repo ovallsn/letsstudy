@@ -19,3 +19,7 @@ Official model card and license: <https://ai.google.dev/gemma/docs/core/model_ca
 ## LiteRT-LM
 
 The Android app uses Google's LiteRT-LM Android runtime. See the [LiteRT-LM project](https://github.com/google-ai-edge/LiteRT-LM) for its source and license notices.
+
+## Google ML Kit Text Recognition
+
+The Android app uses the bundled Latin-script text-recognition model from [Google ML Kit Text Recognition v2](https://developers.google.com/ml-kit/vision/text-recognition/v2/android) to OCR scanned PDF pages on-device. The Android dependency is `com.google.mlkit:text-recognition:16.0.1`. See the [ML Kit terms and attribution](https://developers.google.com/ml-kit/terms) and the dependency's license metadata for applicable terms. Google states that input and recognized output are processed on-device, while the SDK may separately contact Google for updates and send performance/utilization metrics. Recognition does not support Thai-script scans in this app.

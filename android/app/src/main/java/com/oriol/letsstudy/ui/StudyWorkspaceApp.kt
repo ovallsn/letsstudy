@@ -28,6 +28,9 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var destination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
     var initialTopic by rememberSaveable { mutableStateOf("") }
+    var initialLevel by rememberSaveable { mutableStateOf("") }
+    var initialLanguage by rememberSaveable { mutableStateOf("") }
+    var initialGoal by rememberSaveable { mutableStateOf("") }
     var showTutor by rememberSaveable { mutableStateOf(false) }
     var tutorQuestion by rememberSaveable { mutableStateOf(false) }
     var pendingDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -48,8 +51,8 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
         scope.launch { drawer.close() }
     }
     val open: (String) -> Unit = { id -> destination = AppDestination.SESSION; viewModel.openSession(id); scope.launch { drawer.close() } }
-    val topic: (String) -> Unit = { value -> initialTopic = value; destination = AppDestination.TOPIC; viewModel.clearImportedMaterial() }
-    val material: () -> Unit = { destination = AppDestination.MATERIAL; initialTopic = ""; viewModel.clearImportedMaterial() }
+    val topic: (String) -> Unit = { value -> initialTopic = value; initialLevel = ""; initialLanguage = ""; initialGoal = ""; destination = AppDestination.TOPIC; viewModel.clearImportedMaterial() }
+    val material: () -> Unit = { destination = AppDestination.MATERIAL; initialTopic = ""; initialLevel = ""; initialLanguage = ""; initialGoal = ""; viewModel.clearImportedMaterial() }
     val beginNew: () -> Unit = { sessionBefore = state.activeSession?.id; awaitingNew = true }
     LaunchedEffect(state.activeSession?.id, state.errorMessage, awaitingNew) {
         if (awaitingNew && state.activeSession != null && state.activeSession?.id != sessionBefore) { destination = AppDestination.SESSION; awaitingNew = false }
@@ -78,7 +81,9 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
                 val entries = listOf(Triple(AppDestination.HOME, "Home", Icons.Outlined.Home), Triple(AppDestination.LIBRARY, "My studies", Icons.Outlined.MenuBook),
                     Triple(AppDestination.NEW_STUDY, "New study", Icons.Outlined.Add), Triple(AppDestination.JOBS, "Job preparation", Icons.Outlined.WorkOutline),
                     Triple(AppDestination.PROGRESS, "Progress", Icons.Outlined.ShowChart), Triple(AppDestination.HISTORY, "History", Icons.Outlined.History),
-                    Triple(AppDestination.SAVED, "Saved questions", Icons.Outlined.BookmarkBorder), Triple(AppDestination.SETTINGS, "Settings", Icons.Outlined.Settings))
+                    Triple(AppDestination.SAVED, "Saved questions", Icons.Outlined.BookmarkBorder), Triple(AppDestination.REVIEW_DUE, "Review due", Icons.Outlined.Replay),
+                    Triple(AppDestination.LANGUAGE_CHECK, "Language check", Icons.Outlined.Translate), Triple(AppDestination.LEADERBOARD, "Leaderboard", Icons.Outlined.EmojiEvents),
+                    Triple(AppDestination.SETTINGS, "Settings", Icons.Outlined.Settings))
                 entries.forEach { (route, title, icon) -> item {
                     NavigationDrawerItem(label = { Text(title) }, selected = destination == route, onClick = { navigate(route) }, icon = { Icon(icon, null) })
                 } }
@@ -104,13 +109,22 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
                         destination in listOf(AppDestination.LIBRARY, AppDestination.JOBS, AppDestination.HISTORY) -> WorkspaceLibrary(state,
                             when (destination) { AppDestination.JOBS -> "JOB"; AppDestination.HISTORY -> "HISTORY"; else -> "ALL" }, menu, open) { pendingDeleteId = it }
                         destination == AppDestination.SAVED -> WorkspaceSaved(state, menu, { question -> destination = AppDestination.SESSION; viewModel.openSavedQuestion(question) }, viewModel::removeSavedMark)
-                        destination == AppDestination.PROGRESS -> WorkspaceProgress(state, menu) { question -> destination = AppDestination.SESSION; viewModel.openSavedQuestion(question) }
+                        destination == AppDestination.PROGRESS -> WorkspaceProgress(state, menu, { question -> destination = AppDestination.SESSION; viewModel.openSavedQuestion(question) }, { destination = AppDestination.REVIEW_DUE }) { destination = AppDestination.LEADERBOARD }
+                        destination == AppDestination.REVIEW_DUE -> WorkspaceReviewDue(state, menu) { question -> destination = AppDestination.SESSION; viewModel.openDueQuestion(question) }
+                        destination == AppDestination.LANGUAGE_CHECK -> WorkspaceLevelCheck(menu) { result ->
+                            initialTopic = "${result.language} language practice"
+                            initialLevel = result.level
+                            initialLanguage = result.language
+                            initialGoal = "Use my approximate written-language placement result (${result.correct}/${result.total}; ${result.level}) to focus on ${result.nextFocus}. Build practical vocabulary, grammar and reading lessons at this level."
+                            destination = AppDestination.TOPIC
+                        }
+                        destination == AppDestination.LEADERBOARD -> WorkspaceLeaderboard(state, viewModel, menu)
                         destination == AppDestination.SETTINGS -> WorkspaceSettings(state, viewModel, menu)
                         destination == AppDestination.NEW_STUDY -> WorkspaceNewStudy(menu, { topic("") }, { destination = AppDestination.JOB_PREP }, material)
                         destination == AppDestination.JOB_PREP -> WorkspaceJobPreparation(state, menu) { input, language, mode -> online(mode) { beginNew(); viewModel.analyze(input, language, mode) } }
                         destination == AppDestination.TOPIC || destination == AppDestination.MATERIAL -> WorkspaceTopicSetup(state, initialTopic,
-                            destination == AppDestination.MATERIAL, menu, viewModel::importMaterial) { setup -> online(setup.mode) { beginNew(); viewModel.createStudy(setup) } }
-                        else -> WorkspaceHome(state, menu, topic, { destination = AppDestination.JOB_PREP }, open) { destination = AppDestination.PROGRESS }
+                            destination == AppDestination.MATERIAL, menu, viewModel::importMaterial, { setup -> online(setup.mode) { beginNew(); viewModel.createStudy(setup) } }, initialLevel, initialLanguage, initialGoal)
+                        else -> WorkspaceHome(state, menu, topic, { destination = AppDestination.JOB_PREP }, open, { destination = AppDestination.PROGRESS }, { destination = AppDestination.LANGUAGE_CHECK }) { destination = AppDestination.REVIEW_DUE }
                     }
                 }
             }

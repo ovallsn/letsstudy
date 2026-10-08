@@ -223,8 +223,9 @@ class StudyRepository(
         } catch (error: InvalidStudyOutputException) {
             throw invalidOutput()
         }
+        val answeredAt = System.currentTimeMillis()
         dao.updateQuestion(
-            question.copy(
+            ReviewSchedule.afterAnswer(question, !feedback.reviewSuggested, answeredAt).copy(
                 learnerAnswer = answer.trim(),
                 strengths = feedback.strengths.joinToString("\n"),
                 missingPoints = feedback.missingPoints.joinToString("\n"),
@@ -232,6 +233,7 @@ class StudyRepository(
                 improvedReferenceAnswer = feedback.referenceAnswer,
                 reviewSuggested = feedback.reviewSuggested,
                 markedForReview = question.markedForReview || feedback.reviewSuggested,
+                answeredAt = answeredAt,
             ),
         )
         onProgress(StudyGenerationProgress(StudyProgressStage.EVALUATING_ANSWER, 1, 1))
@@ -245,7 +247,11 @@ class StudyRepository(
     suspend fun selectChoice(question: StudyQuestionEntity, choice: Int) {
         val count = question.options().size
         require(question.correctOptionIndex in 0 until count && choice in 0 until count)
-        dao.updateChoice(question.id, choice)
+        val current = dao.getQuestion(question.id) ?: return
+        val now = System.currentTimeMillis()
+        val correct = choice == current.correctOptionIndex
+        val scored = current.copy(selectedOptionIndex = choice, answeredAt = now, score = if (correct) 100 else 0)
+        dao.updateQuestion(ReviewSchedule.afterAnswer(scored, correct, now))
     }
 
     suspend fun resetChoice(question: StudyQuestionEntity) {

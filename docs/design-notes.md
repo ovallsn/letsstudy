@@ -37,3 +37,10 @@ These are behavior patterns, not visual assets to copy. The selected MagicPath c
 - Learner sign-in is optional. The avatar opens profile/settings, and sessions and choices remain in Room on the phone unless the learner enables account sync.
 - On-device generation remains available when the shared online quota runs out, with a slower response.
 - Screens should remain readable with larger Android font settings; long questions and explanations scroll, while navigation remains visible.
+
+## Language level, review and community features
+
+- A standalone 20-question placement flow uses original English, Spanish, French and Thai items. It displays an approximate A1–C1/Pre-A1 written-skills starting point and can prefill a language study path. It is not an official score or a substitute for speaking, listening or writing assessment.
+- Answered questions return in a local review queue. Correct recall gradually increases the interval, while a missed answer returns sooner. Reviews remain available offline.
+- The community leaderboard is behind account sign-in and a separate nickname consent. Public fields exclude email, username, UID and study content. The displayed points are self-reported, capped weekly, and intended for friendly motivation rather than a verified contest.
+- Scanned PDF pages can be recognized locally on Android for up to 30 Latin-script pages. The OCR dependency is bundled. Thai-script scanned pages remain unsupported; searchable PDF text continues through the existing reader.

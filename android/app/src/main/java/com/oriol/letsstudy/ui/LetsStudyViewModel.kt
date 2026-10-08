@@ -56,6 +56,7 @@ data class LetsStudyUiState(
     val activity: List<StudyActivityEntity> = emptyList(),
     val settings: LearnerSettings = LearnerSettings(),
     val account: StudyAccountState = StudyAccountState(),
+    val leaderboard: StudyLeaderboardState = StudyLeaderboardState(),
     val workspaceBusy: Boolean = false,
     val workspaceStatus: String = "",
     val importedMaterial: ImportedMaterial? = null,
@@ -80,6 +81,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     private val choiceMutex = Mutex()
     private val dao = StudyDatabase.get(application).studyDao()
     private val accountSync = StudyAccountSync(dao)
+    private val leaderboardRepository = StudyLeaderboardRepository()
     private val preferences = StudyPreferences(application)
     private val workspaceAi = FirebaseFastQuestionGenerator()
     private val workspace = StudyWorkspace(dao) { prompt, mode ->
@@ -90,7 +92,9 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         _uiState.update { it.copy(settings = preferences.read()) }
-        viewModelScope.launch { accountSync.state.collectLatest { account -> _uiState.update { it.copy(account = account) } } }
+        viewModelScope.launch { accountSync.state.collectLatest { account ->
+            _uiState.update { state -> state.copy(account = account, leaderboard = if (account.email == null) StudyLeaderboardState() else state.leaderboard) }
+        } }
         viewModelScope.launch { dao.observeMessages().collectLatest { values -> _uiState.update { it.copy(messages = values) } } }
         viewModelScope.launch { dao.observeActivity().collectLatest { values -> _uiState.update { it.copy(activity = values) } } }
         viewModelScope.launch {
@@ -380,6 +384,19 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun openDueQuestion(question: StudyQuestionEntity) {
+        viewModelScope.launch {
+            val session = dao.getSession(question.sessionId) ?: return@launch
+            val questions = dao.getQuestions(session.id)
+            val due = questions.filter { it.isDueForReview() }.sortedBy { it.nextReviewAt }
+            if (due.isEmpty()) return@launch
+            val openedAt = System.currentTimeMillis()
+            dao.touchSession(session.id, openedAt)
+            observeSession(session.copy(lastOpenedAt = openedAt))
+            _uiState.update { it.copy(questions = questions, practiceQuestionIds = due.map { item -> item.id }, selectedQuestion = due.firstOrNull { it.id == question.id } ?: due.first(), errorMessage = null) }
+        }
+    }
+
     fun removeSavedMark(question: StudyQuestionEntity) {
         viewModelScope.launch {
             dao.removeSavedMark(question.id)
@@ -410,6 +427,68 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     fun signOut() = accountSync.signOut()
 
     fun deleteAccount(password: String) = accountSync.deleteAccount(password)
+
+    fun refreshLeaderboard() {
+        val account = _uiState.value.account
+        if (account.email == null || !account.profileComplete) {
+            _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = "Sign in and complete your learner profile to view the community board.")) }
+            return
+        }
+        _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                leaderboardRepository.publishCurrentScore(currentWeeklyPoints())
+                _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
+            } catch (error: Exception) {
+                _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }
+            }
+        }
+    }
+
+    fun enableLeaderboard(nickname: String) {
+        if (_uiState.value.account.email == null || !_uiState.value.account.profileComplete) {
+            _uiState.update { it.copy(leaderboard = it.leaderboard.copy(error = "Sign in and complete your learner profile before joining.")) }
+            return
+        }
+        _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                leaderboardRepository.optIn(nickname, currentWeeklyPoints())
+                _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
+            } catch (error: Exception) {
+                _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }
+            }
+        }
+    }
+
+    fun disableLeaderboard() {
+        _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                leaderboardRepository.optOut()
+                _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
+            } catch (error: Exception) {
+                _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }
+            }
+        }
+    }
+
+    private suspend fun currentWeeklyPoints(): Int {
+        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+        val weekStart = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+            .atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+        val answered = dao.getAllQuestions().filter { it.answeredAt >= weekStart }.map { it.id }.toSet().size
+        val minutes = (dao.getAllActivity().filter { it.startedAt >= weekStart }.sumOf { it.durationSeconds }.coerceAtMost(31_500L) / 60).toInt()
+        return (answered * 10 + (minutes / 5)).coerceIn(0, StudyLeaderboardRepository.MAX_WEEKLY_POINTS)
+    }
+
+    private fun leaderboardMessage(error: Exception): String = when (error) {
+        is com.google.firebase.firestore.FirebaseFirestoreException -> if (error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+            "Firebase denied the leaderboard request. Publish the updated Firestore rules from the project README."
+        } else "The community board couldn't load. Your private studies are safe. Try again when you're online."
+        is IllegalArgumentException, is IllegalStateException -> error.message ?: "Check your account and try again."
+        else -> "The community board couldn't load. Your private studies are safe. Try again when you're online."
+    }
 
     fun clearAllStudies() {
         viewModelScope.launch {

@@ -1,13 +1,22 @@
 package com.oriol.letsstudy.data
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
+import android.graphics.pdf.PdfRenderer
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
+import java.io.File
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
 import java.io.InputStream
@@ -24,11 +33,12 @@ class StudyMaterialReader(private val context: Context) {
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBounded(10 * 1024 * 1024 + 1) }
             ?: error("Couldn't open this document. Choose it again.")
         require(bytes.size <= 10 * 1024 * 1024) { "Choose a document smaller than 10 MB." }
+        val isPdf = name.endsWith(".pdf", true)
         val text = when {
-            name.endsWith(".pdf", true) -> {
+            isPdf -> {
                 PDFBoxResourceLoader.init(context.applicationContext)
                 try {
-                    PDDocument.load(bytes).use { document ->
+                    val embeddedText = PDDocument.load(bytes).use { document ->
                         require(document.numberOfPages <= 100) { "Choose a PDF with 100 pages or fewer." }
                         val result = StringBuilder()
                         val writer = object : java.io.Writer() {
@@ -49,6 +59,7 @@ class StudyMaterialReader(private val context: Context) {
                         } catch (_: TextLimitReached) { }
                         result.toString()
                     }
+                    if (embeddedText.length >= MIN_READABLE_TEXT) embeddedText else readScannedPdf(bytes)
                 } catch (_: com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException) {
                     throw IllegalArgumentException("This PDF is password protected. Choose an unlocked PDF or paste its text.")
                 } catch (_: java.io.IOException) {
@@ -59,8 +70,57 @@ class StudyMaterialReader(private val context: Context) {
             name.endsWith(".txt", true) || context.contentResolver.getType(uri)?.startsWith("text/") == true -> bytes.toString(Charsets.UTF_8)
             else -> error("Choose a PDF, PPTX or text document.")
         }.trim()
-        require(text.length >= 100) { "No usable text was found. Scanned PDFs need OCR; paste the text instead." }
+        require(text.length >= MIN_READABLE_TEXT) {
+            if (isPdf) "No readable text was found. Scanned PDF OCR supports Latin-script text on up to 30 pages; Thai-script scans are not supported yet."
+            else "No usable text was found. Check the file or paste its text instead."
+        }
         ImportedMaterial(name, text.take(18_000))
+    }
+
+    private suspend fun readScannedPdf(bytes: ByteArray): String {
+        val temporaryFile = File.createTempFile("letsstudy-scan-", ".pdf", context.cacheDir)
+        temporaryFile.writeBytes(bytes)
+        try {
+            ParcelFileDescriptor.open(temporaryFile, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+                PdfRenderer(descriptor).use { renderer ->
+                    val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                    try {
+                        val result = StringBuilder()
+                        val pageLimit = minOf(renderer.pageCount, MAX_OCR_PAGES)
+                        for (pageIndex in 0 until pageLimit) {
+                            val page = renderer.openPage(pageIndex)
+                            var bitmap: Bitmap? = null
+                            try {
+                                val scale = MAX_OCR_DIMENSION.toFloat() / maxOf(page.width, page.height).coerceAtLeast(1)
+                                val width = (page.width * scale).toInt().coerceAtLeast(1)
+                                val height = (page.height * scale).toInt().coerceAtLeast(1)
+                                bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                                val matrix = Matrix().apply { setScale(scale, scale) }
+                                page.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                val recognized = recognizer.process(InputImage.fromBitmap(bitmap, 0)).await().text
+                                if (recognized.isNotBlank()) result.append("Page ").append(pageIndex + 1).append('\n').append(recognized).append("\n\n")
+                            } finally {
+                                bitmap?.recycle()
+                                page.close()
+                            }
+                            if (result.length >= MAX_TEXT_CHARS) break
+                        }
+                        return result.toString().take(MAX_TEXT_CHARS)
+                    } finally {
+                        recognizer.close()
+                    }
+                }
+            }
+        } finally {
+            temporaryFile.delete()
+        }
+    }
+
+    private companion object {
+        const val MIN_READABLE_TEXT = 100
+        const val MAX_OCR_PAGES = 30
+        const val MAX_OCR_DIMENSION = 1600
+        const val MAX_TEXT_CHARS = 18_000
     }
 
 }

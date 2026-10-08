@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [StudySessionEntity::class, StudyQuestionEntity::class, TutorMessageEntity::class, StudyActivityEntity::class, StudyDeletionEntity::class], version = 6, exportSchema = false)
+@Database(entities = [StudySessionEntity::class, StudyQuestionEntity::class, TutorMessageEntity::class, StudyActivityEntity::class, StudyDeletionEntity::class], version = 7, exportSchema = false)
 abstract class StudyDatabase : RoomDatabase() {
     abstract fun studyDao(): StudyDao
 
@@ -60,12 +60,21 @@ abstract class StudyDatabase : RoomDatabase() {
             }
         }
 
+        private val migration6To7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE study_questions ADD COLUMN reviewIntervalDays INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE study_questions ADD COLUMN reviewStreak INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE study_questions ADD COLUMN nextReviewAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE study_questions ADD COLUMN lastReviewedAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun get(context: Context): StudyDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
                 StudyDatabase::class.java,
                 "roleready.db",
-            ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6).build().also { instance = it }
+            ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6, migration6To7).build().also { instance = it }
         }
     }
 }

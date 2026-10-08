@@ -120,7 +120,9 @@ class StudyWorkspace(
         if (selfRating != null || current.format == PracticeFormat.FILL_BLANK.name) {
             val alternatives = runCatching { gson.fromJson<List<String>>(current.alternativesJson, object : TypeToken<List<String>>() {}.type) }.getOrDefault(emptyList())
             val correct = (alternatives + current.referenceAnswer).any { normalize(it) == normalize(answer) }
-            dao.updateQuestion(current.copy(learnerAnswer = answer.take(8000), answeredAt = System.currentTimeMillis(), score = selfRating ?: if (correct) 100 else 0))
+            val now = System.currentTimeMillis()
+            val score = selfRating ?: if (correct) 100 else 0
+            dao.updateQuestion(ReviewSchedule.afterAnswer(current.copy(learnerAnswer = answer.take(8000), answeredAt = now, score = score), score >= 80, now))
             return
         }
         dao.updateQuestion(current.copy(learnerAnswer = answer.take(8000)))
@@ -130,9 +132,10 @@ class StudyWorkspace(
         val score = response.get("score")?.asInt ?: invalid()
         if (score !in 0..100) invalid()
         val latest = dao.getQuestion(current.id) ?: return
-        dao.updateQuestion(latest.copy(learnerAnswer = answer.take(8000), answeredAt = System.currentTimeMillis(), score = score,
+        val now = System.currentTimeMillis()
+        dao.updateQuestion(ReviewSchedule.afterAnswer(latest.copy(learnerAnswer = answer.take(8000), answeredAt = now, score = score,
             strengths = response.strings("strengths").joinToString("\n"), missingPoints = response.strings("missingPoints").joinToString("\n"),
-            reasoningFeedback = response.required("explanation", 5000), improvedReferenceAnswer = response.required("improvedAnswer", 5000), reviewSuggested = score < 60))
+            reasoningFeedback = response.required("explanation", 5000), improvedReferenceAnswer = response.required("improvedAnswer", 5000), reviewSuggested = score < 60), score >= 80, now))
     }
 
     suspend fun tutor(session: StudySessionEntity, question: StudyQuestionEntity?, text: String, history: List<TutorMessageEntity>) {

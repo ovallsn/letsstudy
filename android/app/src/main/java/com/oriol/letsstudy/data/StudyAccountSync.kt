@@ -45,6 +45,7 @@ private class UsernameTakenException : IllegalStateException("That username is a
 
 class StudyAccountSync(private val dao: StudyDao) {
     private val gson = Gson()
+    private val leaderboardRepository = StudyLeaderboardRepository()
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -135,18 +136,21 @@ class StudyAccountSync(private val dao: StudyDao) {
             activeUid = null
         }
         var removedProfile: Map<String, Any?>? = null
+        var removedLeaderboard: LeaderboardEnrollment? = null
         try {
             withTimeout(ACCOUNT_DELETE_TIMEOUT_MILLIS) {
                 deleteCloudRecords(user.uid)
+                removedLeaderboard = leaderboardRepository.removeForAccountDeletion(user.uid)
                 removedProfile = deleteProfile(user.uid)
                 user.delete().await()
             }
         } catch (error: Exception) {
             if (auth.currentUser?.uid == user.uid) {
+                val leaderboardRestoreFailed = removedLeaderboard?.let { enrollment -> runCatching { leaderboardRepository.restoreAfterAccountDeletionFailure(user.uid, enrollment) }.isFailure } == true
                 val profileRestoreFailed = removedProfile?.let { profile -> runCatching { restoreProfile(user.uid, profile) }.isFailure } == true
                 switchAccount(user)
-                if (profileRestoreFailed) {
-                    _state.update { it.copy(message = "Account deletion did not finish, and the username could not be restored. Complete your profile again in Settings.") }
+                if (profileRestoreFailed || leaderboardRestoreFailed) {
+                    _state.update { it.copy(message = "Account deletion did not finish, and some profile settings could not be restored. Check your profile and community board settings.") }
                 }
             }
             throw error
@@ -554,6 +558,8 @@ class StudyAccountSync(private val dao: StudyDao) {
         "selectedOptionIndex" to selectedOptionIndex, "conceptLessonJson" to conceptLessonJson,
         "format" to format, "moduleId" to moduleId, "alternativesJson" to alternativesJson,
         "answeredAt" to answeredAt, "score" to score, "updatedAt" to updatedAt,
+        "reviewIntervalDays" to reviewIntervalDays, "reviewStreak" to reviewStreak,
+        "nextReviewAt" to nextReviewAt, "lastReviewedAt" to lastReviewedAt,
     )
 
     private fun TutorMessageEntity.toCloudRecord() = mapOf(
@@ -598,6 +604,8 @@ class StudyAccountSync(private val dao: StudyDao) {
             conceptLessonJson = data.string("conceptLessonJson"), format = data.string("format", "MULTIPLE_CHOICE"),
             moduleId = data.string("moduleId"), alternativesJson = data.string("alternativesJson", "[]"),
             answeredAt = data.long("answeredAt"), score = data.int("score", -1), updatedAt = data.long("updatedAt"),
+            reviewIntervalDays = data.int("reviewIntervalDays"), reviewStreak = data.int("reviewStreak"),
+            nextReviewAt = data.long("nextReviewAt"), lastReviewedAt = data.long("lastReviewedAt"),
         ).takeIf { it.id.isNotBlank() && it.sessionId.isNotBlank() }
     }.getOrNull()
 

@@ -88,7 +88,26 @@ fun WorkspaceSaved(state: LetsStudyUiState, onMenu: () -> Unit, onOpen: (StudyQu
 }
 
 @Composable
-fun WorkspaceProgress(state: LetsStudyUiState, onMenu: () -> Unit, onOpenQuestion: (StudyQuestionEntity) -> Unit) {
+fun WorkspaceReviewDue(state: LetsStudyUiState, onMenu: () -> Unit, onOpen: (StudyQuestionEntity) -> Unit) {
+    val due = state.allQuestions.filter { it.isDueForReview() }.sortedBy { it.nextReviewAt }
+    WorkspacePage("Review due", onMenu) {
+        item { WorkspaceTitle("Bring it back to mind.", "Questions return after increasing intervals so the ideas stay easier to recall.") }
+        if (due.isEmpty()) item { WorkspaceEmpty("You're all caught up", "Answered questions will appear here when their next review date arrives.") }
+        items(due, key = { it.id }) { question ->
+            WorkspaceCard {
+                Text(question.topic, style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Primary)
+                Text(question.prompt, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(state.sessions.firstOrNull { it.id == question.sessionId }?.title.orEmpty(), style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                val interval = question.reviewIntervalDays.coerceAtLeast(1)
+                Text("Last interval · $interval ${if (interval == 1) "day" else "days"}", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Muted)
+                TextButton({ onOpen(question) }) { Text("Review this question"); Icon(Icons.Outlined.PlayArrow, null) }
+            }
+        }
+    }
+}
+
+@Composable
+fun WorkspaceProgress(state: LetsStudyUiState, onMenu: () -> Unit, onOpenQuestion: (StudyQuestionEntity) -> Unit, onReviewDue: () -> Unit, onLeaderboard: () -> Unit) {
     val answered = state.allQuestions.filter { it.isAnswered() }
     val scored = answered.filter { it.score >= 0 || it.selectedOptionIndex >= 0 && it.correctOptionIndex >= 0 }
     val correct = scored.count { if (it.score >= 0) it.score >= 80 else it.selectedOptionIndex == it.correctOptionIndex }
@@ -117,6 +136,9 @@ fun WorkspaceProgress(state: LetsStudyUiState, onMenu: () -> Unit, onOpenQuestio
                 Text("Paths with practice still to complete", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
+        val dueCount = state.allQuestions.count { it.isDueForReview() }
+        if (dueCount > 0) item { WorkspaceAction("$dueCount questions ready to review", "Open your spaced-repetition queue", Icons.Outlined.Replay, onReviewDue) }
+        item { WorkspaceAction("Community leaderboard", "Join with a nickname and track this week's study points", Icons.Outlined.EmojiEvents, onLeaderboard) }
         if (scored.isNotEmpty()) item {
             WorkspaceCard {
                 Text("Topic strengths", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -206,7 +228,7 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
         item {
             WorkspaceCard {
                 Text("Privacy & your data", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Your studies work without an account and are stored on this phone. If you opt into sync, your display name, private username and study library are stored with your Firebase account so they are available on your other devices. Your profile is not public; any future leaderboard would require separate consent. Online AI requests are processed separately by Google Gemini; on-device generation stays on this phone.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("Your studies work without an account and are stored on this phone. If you opt into sync, your display name, private username and study library are stored with your Firebase account so they are available on your other devices. The optional community board shares only a nickname and weekly points after a separate opt-in; study content and your email stay private. Scanned PDF text is recognized on-device; Google ML Kit may separately send service performance metrics. Online AI requests are processed separately by Google Gemini; on-device generation stays on this phone.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 TextButton({ clearConfirm = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete all study data") }
                 TextButton({ showNotices = true }) { Text("Third-party licenses") }
             }

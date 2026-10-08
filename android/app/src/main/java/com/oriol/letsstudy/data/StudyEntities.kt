@@ -58,6 +58,10 @@ data class StudyQuestionEntity(
     @ColumnInfo(defaultValue = "0") val answeredAt: Long = 0,
     @ColumnInfo(defaultValue = "-1") val score: Int = -1,
     @ColumnInfo(defaultValue = "0") val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0") val reviewIntervalDays: Int = 0,
+    @ColumnInfo(defaultValue = "0") val reviewStreak: Int = 0,
+    @ColumnInfo(defaultValue = "0") val nextReviewAt: Long = 0,
+    @ColumnInfo(defaultValue = "0") val lastReviewedAt: Long = 0,
 )
 
 @Entity(tableName = "tutor_messages", indices = [Index("sessionId")])

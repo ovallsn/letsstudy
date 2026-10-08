@@ -28,7 +28,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-fun WorkspaceHome(state: LetsStudyUiState, onMenu: () -> Unit, onTopic: (String) -> Unit, onJob: () -> Unit, onOpen: (String) -> Unit, onProgress: () -> Unit) {
+fun WorkspaceHome(state: LetsStudyUiState, onMenu: () -> Unit, onTopic: (String) -> Unit, onJob: () -> Unit, onOpen: (String) -> Unit, onProgress: () -> Unit, onLevelCheck: () -> Unit, onReviewDue: () -> Unit) {
     var topic by rememberSaveable { mutableStateOf("") }
     val hour = java.time.LocalTime.now().hour
     val greeting = when { hour < 12 -> "Good morning"; hour < 18 -> "Good afternoon"; else -> "Good evening" }
@@ -102,6 +102,9 @@ fun WorkspaceHome(state: LetsStudyUiState, onMenu: () -> Unit, onTopic: (String)
                 HomeQuickAction(Modifier.weight(1f), "Study a topic", Icons.Outlined.AutoAwesome, { onTopic(topic.trim()) })
             }
         }
+        item { WorkspaceAction("Find my language level", "A free 20-question estimate before you choose a study path", Icons.Outlined.Translate, onLevelCheck) }
+        val dueCount = state.allQuestions.count { it.isDueForReview() }
+        if (dueCount > 0) item { WorkspaceAction("Review due · $dueCount", "Bring key ideas back at the right time", Icons.Outlined.Replay, onReviewDue) }
         val latest = state.sessions.maxByOrNull { maxOf(it.lastOpenedAt, it.createdAt) }
         if (latest != null) item {
             Text("Pick up where you left off", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -134,13 +137,13 @@ fun WorkspaceNewStudy(onMenu: () -> Unit, onTopic: () -> Unit, onJob: () -> Unit
 }
 
 @Composable
-fun WorkspaceTopicSetup(state: LetsStudyUiState, initialTopic: String, materialMode: Boolean, onMenu: () -> Unit, onImport: (android.net.Uri) -> Unit, onCreate: (StudySetup) -> Unit) {
+fun WorkspaceTopicSetup(state: LetsStudyUiState, initialTopic: String, materialMode: Boolean, onMenu: () -> Unit, onImport: (android.net.Uri) -> Unit, onCreate: (StudySetup) -> Unit, initialLevel: String = "", initialLanguage: String = "", initialGoal: String = "") {
     var topic by rememberSaveable(initialTopic, materialMode) { mutableStateOf(initialTopic) }
-    var goal by rememberSaveable { mutableStateOf("") }
-    var level by rememberSaveable { mutableStateOf("Beginner") }
+    var goal by rememberSaveable(initialTopic, initialGoal, materialMode) { mutableStateOf(initialGoal) }
+    var level by rememberSaveable(initialTopic, initialLevel, materialMode) { mutableStateOf(initialLevel.ifBlank { "Beginner" }) }
     var intensity by rememberSaveable { mutableStateOf("Balanced") }
     var target by rememberSaveable { mutableStateOf("") }
-    var language by rememberSaveable { mutableStateOf(state.settings.language) }
+    var language by rememberSaveable(initialTopic, initialLanguage, materialMode) { mutableStateOf(initialLanguage.ifBlank { state.settings.language }) }
     var mode by rememberSaveable { mutableStateOf(state.settings.mode) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(onImport) }
     LaunchedEffect(state.importedMaterial?.name) {
@@ -157,7 +160,7 @@ fun WorkspaceTopicSetup(state: LetsStudyUiState, initialTopic: String, materialM
         if (materialMode) item {
             WorkspaceCard {
                 OutlinedButton({ picker.launch(arrayOf("application/pdf", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "text/plain")) }, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.UploadFile, null); Spacer(Modifier.width(8.dp)); Text("Choose a document") }
-                Text("PDF, PPTX or TXT · up to 10 MB and 100 pages/slides", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("PDF, PPTX or TXT · up to 10 MB and 100 pages/slides. Scanned PDF OCR runs on your phone for up to 30 Latin-script pages; Thai-script scans are not supported yet.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 state.importedMaterial?.let { imported ->
                     Text(imported.name, fontWeight = FontWeight.Bold)
                     Text("${imported.text.length} characters ready · preview", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Primary)
@@ -170,7 +173,8 @@ fun WorkspaceTopicSetup(state: LetsStudyUiState, initialTopic: String, materialM
             WorkspaceCard {
                 WorkspaceField(topic, { topic = it }, if (materialMode) "What is this material about?" else "What do you want to learn?", maxLength = 500)
                 WorkspaceField(goal, { goal = it }, "Your goal (optional)", maxLength = 1000)
-                WorkspaceSelect("Your starting point", level, listOf("Beginner", "Some experience", "Advanced", "Assess me")) { level = it }
+                WorkspaceSelect("Your starting point", level, listOf("Pre-A1", "A1", "A2", "B1", "B2", "C1", "Beginner", "Some experience", "Advanced", "Assess me")) { level = it }
+                if (level in listOf("Pre-A1", "A1", "A2", "B1", "B2", "C1")) Text("This is an approximate written-language estimate, not a certified level.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 WorkspaceSelect("Study pace", intensity, listOf("Quick · 10 min", "Balanced", "Intensive · 40 min")) { intensity = it }
                 WorkspaceField(target, { target = it }, "Target date or milestone (optional)", maxLength = 200)
                 WorkspaceField(language, { language = it }, "Study language", maxLength = 80)
