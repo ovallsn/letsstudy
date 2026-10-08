@@ -556,7 +556,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         is IOException -> "There's no internet connection. Check your connection and try again."
         else -> when {
             error.javaClass.simpleName.contains("Quota", ignoreCase = true) || error.message.orEmpty().contains("quota", ignoreCase = true) ->
-                "The free online study limit has been reached. Choose On-device mode for another round, or try online later."
+                "Fast Online is temporarily unavailable. Try again later or choose On-device study."
             error.message.orEmpty().contains("App Check", ignoreCase = true) ->
                 "Firebase App Check could not verify this build. Check the app registration and try again."
             else -> "The online study service could not finish this round. Try again or choose On-device mode. Your saved progress is safe."

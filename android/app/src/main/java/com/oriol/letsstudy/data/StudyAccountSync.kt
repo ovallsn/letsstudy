@@ -518,7 +518,7 @@ class StudyAccountSync(private val dao: StudyDao) {
         }
         is FirebaseFirestoreException -> when (error.code) {
             FirebaseFirestoreException.Code.PERMISSION_DENIED -> "Firebase denied cloud sync. Publish the Firestore security rules from the project README."
-            FirebaseFirestoreException.Code.UNAVAILABLE -> "Cloud sync is offline. Your study data remains on this phone."
+            FirebaseFirestoreException.Code.UNAVAILABLE -> "Your studies are saved on this phone. Check your connection to resume sync."
             else -> "Cloud sync could not finish. Your study data remains on this phone."
         }
         is kotlinx.coroutines.TimeoutCancellationException -> "Cloud sync is taking too long. Check the connection and try again."

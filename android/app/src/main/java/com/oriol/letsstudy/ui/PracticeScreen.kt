@@ -447,10 +447,7 @@ private fun LessonActionCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Lightbulb, null, tint = LetsStudyColors.Clay, modifier = Modifier.size(21.dp))
                 Spacer(Modifier.width(9.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(copy.lessonIntro, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Text(copy.quotaNote, style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 3.dp))
-                }
+                Text(copy.lessonIntro, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             }
             if (errorMessage != null) {
                 Text(errorMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 10.dp))

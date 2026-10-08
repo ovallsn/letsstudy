@@ -164,7 +164,7 @@ fun StudyScreen(
                         Text(if (isGenerating) "Making 15 more…" else "Add 15 questions", style = MaterialTheme.typography.labelMedium)
                     }
                 }
-                if (!offlineAvailable) Text("Offline mode can be set up from Home.", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 5.dp))
+                if (!offlineAvailable) Text("Set up On-device study from Home.", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 5.dp))
             }
             if (isGenerating) item { GenerationJourneyCard(generationProgress, nextRoundMode == "ONLINE", moreQuestions = true) }
             if (errorMessage != null) item { ErrorBanner(errorMessage, onDismissError) }

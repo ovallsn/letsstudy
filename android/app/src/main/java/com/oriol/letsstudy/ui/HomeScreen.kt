@@ -229,14 +229,14 @@ fun HomeScreen(
                         )
                     }
 
-                    Text("GENERATION MODE", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Muted, fontWeight = FontWeight.Bold, letterSpacing = 0.65.sp, modifier = Modifier.padding(top = 15.dp, bottom = 8.dp))
+                    Text("STUDY MODE", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Muted, fontWeight = FontWeight.Bold, letterSpacing = 0.65.sp, modifier = Modifier.padding(top = 15.dp, bottom = 8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         ModeTile("Fast online", "Quick generation", generationMode == "ONLINE", Icons.Outlined.Bolt, Modifier.weight(1f)) { generationMode = "ONLINE" }
                         ModeTile("On-device", "Runs on your phone", generationMode == "OFFLINE", Icons.Outlined.Memory, Modifier.weight(1f)) { generationMode = "OFFLINE" }
                     }
                     Text(
-                        if (generationMode == "ONLINE") "Uses the project’s Gemini service. Job text is sent to Google."
-                        else "Download the model once. Generation stays on your phone and takes longer.",
+                        if (generationMode == "ONLINE") "Fast Online creates your questions more quickly."
+                        else "On-device study may take longer and requires a one-time model download.",
                         style = MaterialTheme.typography.bodySmall,
                         color = LetsStudyColors.Muted,
                         modifier = Modifier.padding(top = 9.dp),

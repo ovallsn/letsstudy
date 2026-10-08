@@ -51,7 +51,7 @@ fun WorkspaceLevelCheck(onMenu: () -> Unit, onBuildPath: (LanguagePlacementResul
                 WorkspaceSelect("Language to assess", language, LanguagePlacementTest.languages) {
                     language = it
                 }
-                Text("20 questions · reading, grammar and vocabulary · works offline · no AI requests", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("20 questions · reading, grammar and vocabulary", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
         if (questionIndex < questions.size) {

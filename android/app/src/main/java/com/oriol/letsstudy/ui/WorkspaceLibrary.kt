@@ -202,8 +202,8 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
                     Text("Your account display name and username are managed in Account & sync above.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 }
                 WorkspaceField(settings.language, { viewModel.saveSettings(settings.copy(language = it)) }, "Default study language", maxLength = 80)
-                WorkspaceSelect("Preferred generation", if (settings.mode == "ONLINE") "Fast online" else "On-device", listOf("Fast online", "On-device")) { viewModel.saveSettings(settings.copy(mode = if (it == "Fast online") "ONLINE" else "OFFLINE")) }
-                Text("Fast online uses a shared, limited Gemini quota. The owner can check limits in Google AI Studio. On-device avoids online generation quota but can take longer.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                WorkspaceSelect("Preferred study mode", if (settings.mode == "ONLINE") "Fast online" else "On-device", listOf("Fast online", "On-device")) { viewModel.saveSettings(settings.copy(mode = if (it == "Fast online") "ONLINE" else "OFFLINE")) }
+                Text("Fast online is quicker. On-device study may take longer and requires a one-time model download.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
         item {
@@ -228,7 +228,7 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
         item {
             WorkspaceCard {
                 Text("Privacy & your data", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Your studies work without an account and are stored on this phone. If you opt into sync, your display name, private username and study library are stored with your Firebase account so they are available on your other devices. The optional community board shares only a nickname and weekly points after a separate opt-in; study content and your email stay private. Scanned PDF text is recognized on-device; Google ML Kit may separately send service performance metrics. Online AI requests are processed separately by Google Gemini; on-device generation stays on this phone.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("Your studies are saved on this phone. If you enable account sync, your profile and study library are stored in Firebase. Fast Online sends relevant study material and submitted answers or tutor messages to Google Gemini. On-device study generation uses the model installed on your phone; tutor messages and deeper lessons still use Google Gemini. Scanned PDFs are read on your phone, though Google ML Kit may send service metrics. The optional community board shows your chosen name and weekly points after you join; your email and study content stay private.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 TextButton({ clearConfirm = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete all study data") }
                 TextButton({ showNotices = true }) { Text("Third-party licenses") }
             }
@@ -306,7 +306,7 @@ private fun AccountSyncPanel(account: StudyAccountState, localDisplayName: Strin
                 CloudSyncStatus.CONNECTING -> "Connecting to your private study library…"
                 CloudSyncStatus.SYNCING -> "Syncing your studies…"
                 CloudSyncStatus.SYNCED -> "Your studies are up to date"
-                CloudSyncStatus.OFFLINE -> "Offline · saved studies stay on this phone until sync resumes"
+                CloudSyncStatus.OFFLINE -> "No connection · saved studies will sync when your connection returns"
                 CloudSyncStatus.ERROR -> "Cloud sync needs attention"
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

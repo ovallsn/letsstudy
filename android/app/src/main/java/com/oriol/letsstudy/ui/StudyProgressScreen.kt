@@ -131,7 +131,7 @@ fun StudyProgressScreen(
             ProgressStatCard(
                 title = "Concept lessons",
                 value = lessons.toString(),
-                supporting = "Saved for offline reading",
+                supporting = "Saved in your library",
                 icon = Icons.Outlined.School,
                 modifier = Modifier.fillMaxWidth(),
             )

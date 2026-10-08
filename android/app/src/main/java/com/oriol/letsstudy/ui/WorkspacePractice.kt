@@ -91,9 +91,8 @@ fun WorkspaceStudyPath(state: LetsStudyUiState, viewModel: LetsStudyViewModel, o
             WorkspaceCard {
                 Text(if (selectedModule == null) "Keep your curiosity moving" else "Practise ${selectedModule.title}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 WorkspaceSelect("Practice format", PracticeFormat.valueOf(selectedFormat).label, PracticeFormat.entries.map { it.label }) { label -> selectedFormat = PracticeFormat.entries.first { it.label == label }.name }
-                WorkspaceSelect("Generation mode", if (mode == "ONLINE") "Fast online" else "On-device", listOf("Fast online", "On-device")) { mode = if (it == "Fast online") "ONLINE" else "OFFLINE" }
+                WorkspaceSelect("Study mode", if (mode == "ONLINE") "Fast online" else "On-device", listOf("Fast online", "On-device")) { mode = if (it == "Fast online") "ONLINE" else "OFFLINE" }
                 Button({ onGenerate(PracticeFormat.valueOf(selectedFormat), selectedModule, mode, false) }, Modifier.fillMaxWidth(), enabled = !state.workspaceBusy && !state.isGenerating) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text("Add 15 new questions") }
-                Text("One online request per round. On-device rounds run in smaller batches and take longer.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
         item { WorkspaceAction("Ask your study tutor", "Definitions, examples and a little more clarity", Icons.Outlined.ChatBubbleOutline, onTutor) }
@@ -192,7 +191,6 @@ fun WorkspacePractice(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
                         speechError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     }
                     Button({ onAnswer(answer.trim()); revealed = true }, enabled = answer.isNotBlank() && !state.workspaceBusy, modifier = Modifier.fillMaxWidth()) { Text(if (question.format == PracticeFormat.FILL_BLANK.name) "Check answer" else if (question.answeredAt > 0) "Review my answer again" else "Get feedback") }
-                    if (question.format != PracticeFormat.FILL_BLANK.name) Text("Feedback makes one AI request in your study's generation mode.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 }
             }
             if (selected >= 0 || question.answeredAt > 0) item {
@@ -232,10 +230,10 @@ private fun WorkspaceTheory(state: LetsStudyUiState, question: StudyQuestionEnti
                 lesson.keyTerms.forEach { term -> Text(term.term, fontWeight = FontWeight.SemiBold); Text(term.definition) }
                 Text("Remember this", fontWeight = FontWeight.Bold); Text(lesson.rememberThis)
             } else {
-                Text("Go deeper with a definition, how it works, an example and key terms. The first lesson uses one Fast Online request and is saved for offline reading.", style = MaterialTheme.typography.bodySmall)
+                Text("Go deeper with a definition, how it works, an example and key terms. Your lesson is saved with this question.", style = MaterialTheme.typography.bodySmall)
                 if (loading) CircularProgressIndicator(Modifier.size(24.dp))
                 else Button(onRequest) { Text("Learn this topic") }
-                state.conceptLessonErrorCodes[question.id]?.let { code -> Text(when (code) { "QUOTA" -> "The online quota is currently exhausted. Try again later."; "NETWORK" -> "Check your internet connection and try again."; else -> "The lesson couldn't be created. Try again." }, color = MaterialTheme.colorScheme.error) }
+                state.conceptLessonErrorCodes[question.id]?.let { code -> Text(when (code) { "QUOTA" -> "The study service is temporarily unavailable. Try again later."; "NETWORK" -> "Check your internet connection and try again."; else -> "The lesson couldn't be created. Try again." }, color = MaterialTheme.colorScheme.error) }
             }
         } }, confirmButton = { TextButton(onDismiss) { Text("Back to practice") } })
 }
@@ -264,7 +262,6 @@ fun WorkspaceTutor(state: LetsStudyUiState, questionContext: Boolean, onBack: ()
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back to study") }; Text("Your study tutor", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
                 WorkspaceTitle("Make it click.", question?.topic ?: session.title)
-                Text("Each message uses one online Gemini request, including for on-device studies. Saved conversations can be read offline.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 8.dp))
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -157,7 +157,7 @@ fun ModelSetupCard(
                 ModelSetupPresentation.Ready -> {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Questions and answer feedback are created on this phone. Study works offline after setup.",
+                        "Ready to create another study round.",
                         style = MaterialTheme.typography.bodySmall,
                         color = LetsStudyColors.Muted,
                     )
@@ -179,7 +179,7 @@ fun ModelSetupCard(
                 onClick = { showModelLicense = true },
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
-                Text("How offline study works", color = LetsStudyColors.Primary)
+                Text("About On-device study", color = LetsStudyColors.Primary)
             }
         }
     }
@@ -192,7 +192,7 @@ fun ModelSetupCard(
             icon = { Icon(Icons.Outlined.CloudDownload, null, tint = LetsStudyColors.Primary) },
             title = { Text("Download using mobile data?") },
             text = {
-                Text("This downloads ${ModelCatalog.DISPLAY_SIZE} once. Your mobile provider may charge for data or count it toward your plan. After the model is installed, questions are generated on your phone without an AI account.")
+                Text("This downloads ${ModelCatalog.DISPLAY_SIZE} once. Your mobile provider may charge for the data or count it toward your plan.")
             },
             confirmButton = {
                 TextButton(
@@ -214,7 +214,7 @@ fun ModelSetupCard(
             onDismissRequest = { showModelLicense = false },
             shape = RoundedCornerShape(26.dp),
             containerColor = LetsStudyColors.Card,
-            title = { Text("How offline study works") },
+            title = { Text("About On-device study") },
             text = {
                 Column(
                     Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
@@ -233,21 +233,21 @@ fun ModelSetupCard(
 }
 
 private fun titleFor(state: ModelSetupPresentation): String = when (state) {
-    ModelSetupPresentation.NeedsDownload -> "Take study offline"
+    ModelSetupPresentation.NeedsDownload -> "Set up On-device study"
     ModelSetupPresentation.Queued -> "Waiting for Wi‑Fi"
-    is ModelSetupPresentation.Downloading -> "Getting offline study ready"
+    is ModelSetupPresentation.Downloading -> "Downloading study model"
     ModelSetupPresentation.Verifying -> "Checking the model file"
-    ModelSetupPresentation.Ready -> "Offline study is ready"
+    ModelSetupPresentation.Ready -> "On-device study is ready"
     ModelSetupPresentation.Loading -> "Opening the study model"
     is ModelSetupPresentation.Failed -> "Couldn’t finish model setup"
 }
 
 private fun detailFor(state: ModelSetupPresentation): String = when (state) {
-    ModelSetupPresentation.NeedsDownload -> "Download once, then study on your phone"
+    ModelSetupPresentation.NeedsDownload -> "Download the model once to use this study option"
     ModelSetupPresentation.Queued -> "The download will resume when Wi‑Fi is available"
     is ModelSetupPresentation.Downloading -> "This can take a while. You can pause and resume later."
     ModelSetupPresentation.Verifying -> "Making sure every model file is complete"
-    ModelSetupPresentation.Ready -> "The local study model is installed"
+    ModelSetupPresentation.Ready -> "Ready for your next study round"
     ModelSetupPresentation.Loading -> "Starting the model for your first study"
     is ModelSetupPresentation.Failed -> "Your saved sessions are still here"
 }

@@ -182,7 +182,6 @@ fun WorkspaceTopicSetup(state: LetsStudyUiState, initialTopic: String, materialM
                 Button({ onCreate(StudySetup(topic.trim(), goal.trim(), level, intensity, target.trim(), language.trim(), mode,
                     if (materialMode) "MATERIAL" else "TOPIC", if (materialMode) state.importedMaterial?.text.orEmpty() else "", if (materialMode) state.importedMaterial?.name.orEmpty() else "")) },
                     Modifier.fillMaxWidth(), enabled = topic.trim().length >= 3 && language.isNotBlank() && (!materialMode || state.importedMaterial != null) && !state.workspaceBusy) { Text("Build my learning path") }
-                Text("A plan is one AI request. Each practice round or tutor message is another. Saved content opens offline.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
     }
