@@ -50,7 +50,7 @@ No se deben registrar tokens de App Check, porque esta ruta no usa Firebase AI. 
 
 ## Alcance actual
 
-El primer flujo se limita a ofertas de trabajo públicas o texto pegado, tandas de 15, evaluación local y guardado local. Los temas generales y la importación de presentaciones/PDF siguen fuera de esta implementación. Las páginas con inicio de sesión, JavaScript obligatorio o controles de acceso requieren pegar el texto; no se intentan eludir.
+Este documento describe el prototipo inicial de IA local. Desde la versión 0.9, el workspace también ofrece temas, importación PDF/PPTX/TXT y nueve formatos de práctica. El tutor y las primeras mini-lecciones usan Gemini online de forma explícita; no son funciones sin conexión. Las páginas con inicio de sesión, JavaScript obligatorio o controles de acceso requieren pegar el texto; no se intentan eludir. El README describe el alcance vigente.
 
 ## Fuentes primarias
 

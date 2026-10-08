@@ -37,6 +37,7 @@ class StudyRepository(
     private val fastGenerator: FastQuestionGenerator? = null,
 ) {
     val sessions: Flow<List<StudySessionEntity>> = dao.observeSessions()
+    val allQuestions: Flow<List<StudyQuestionEntity>> = dao.observeAllQuestions()
 
     suspend fun getSession(id: String) = dao.getSession(id)
     fun questions(sessionId: String): Flow<List<StudyQuestionEntity>> = dao.observeQuestions(sessionId)
@@ -238,11 +239,12 @@ class StudyRepository(
     }
 
     suspend fun toggleReview(question: StudyQuestionEntity) {
-        dao.updateQuestion(question.copy(markedForReview = !question.markedForReview))
+        dao.toggleSavedMark(question.id)
     }
 
     suspend fun selectChoice(question: StudyQuestionEntity, choice: Int) {
-        require(question.correctOptionIndex in 0..3 && choice in 0..3)
+        val count = question.options().size
+        require(question.correctOptionIndex in 0 until count && choice in 0 until count)
         dao.updateChoice(question.id, choice)
     }
 

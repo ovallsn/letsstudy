@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -23,11 +21,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Menu
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,7 +61,6 @@ import com.oriol.letsstudy.R
 import com.oriol.letsstudy.ai.ModelDownloadState
 import com.oriol.letsstudy.ai.ModelState
 import com.oriol.letsstudy.data.StudyGenerationProgress
-import com.oriol.letsstudy.data.StudyProgressStage
 import com.oriol.letsstudy.data.StudySessionEntity
 import com.oriol.letsstudy.domain.SourceKind
 import com.oriol.letsstudy.domain.StudyInput
@@ -95,210 +92,222 @@ fun HomeScreen(
     val modelReady = modelSetupPresentation(modelState, downloadState) == ModelSetupPresentation.Ready
     val canAnalyze = source.trim().let {
         it.startsWith("http://") || it.startsWith("https://") || (isText && it.length >= 100)
-    } && (generationMode == "ONLINE" || modelReady)
+    } && (generationMode == "ONLINE" || modelReady) && chosenLanguage.isNotBlank()
 
-    Scaffold(
-        containerColor = LetsStudyColors.Canvas,
-        bottomBar = {
-            HomeBuildBar(
-                enabled = canAnalyze && chosenLanguage.isNotBlank() && !isAnalyzing,
-                isAnalyzing = isAnalyzing,
-                onClick = { onAnalyze(StudyInput(kind, source.trim()), chosenLanguage, generationMode) },
-            )
-        },
-    ) { screenPadding ->
-    Column(
-        Modifier.fillMaxSize().padding(screenPadding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
-    ) {
-        Spacer(Modifier.height(14.dp))
-        BrandHeader(onOpenMenu)
-        Spacer(Modifier.height(20.dp))
-        HeroCard()
-        if (latestSession != null) {
+    Scaffold(containerColor = LetsStudyColors.Canvas) { screenPadding ->
+        Column(
+            Modifier.fillMaxSize().padding(screenPadding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onOpenMenu) {
+                    Icon(Icons.Outlined.Menu, contentDescription = "Open study library", tint = LetsStudyColors.Ink)
+                }
+                Text("Home", style = MaterialTheme.typography.titleMedium, color = LetsStudyColors.Ink, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                Surface(color = LetsStudyColors.Mint, shape = CircleShape, modifier = Modifier.size(38.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = "Let’s Study", modifier = Modifier.size(36.dp))
+                    }
+                }
+            }
+
             Spacer(Modifier.height(18.dp))
-            Surface(
-                onClick = { onOpenSession(latestSession.id) },
-                shape = RoundedCornerShape(22.dp),
-                color = LetsStudyColors.Mint,
+            Text("A FOCUSED WAY TO PREPARE", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+            Text(
+                "Walk into your\nnext interview ready.",
+                style = MaterialTheme.typography.headlineMedium,
+                color = LetsStudyColors.Ink,
+                lineHeight = 31.sp,
+                modifier = Modifier.padding(top = 7.dp),
+            )
+            Text(
+                "Turn a job listing into practical questions, clear explanations, and a study path you can revisit.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = LetsStudyColors.Muted,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+
+            if (latestSession != null) {
+                Spacer(Modifier.height(18.dp))
+                Surface(
+                    onClick = { onOpenSession(latestSession.id) },
+                    shape = RoundedCornerShape(20.dp),
+                    color = LetsStudyColors.Mint,
+                    border = BorderStroke(1.dp, LetsStudyColors.Primary.copy(alpha = 0.16f)),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(13.dp), modifier = Modifier.size(45.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.PlayArrow, contentDescription = null, tint = LetsStudyColors.Primary)
+                            }
+                        }
+                        Spacer(Modifier.width(11.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("CONTINUE STUDYING", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                            Text(latestSession.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                        }
+                        Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = "Open latest study", tint = LetsStudyColors.Primary)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(21.dp))
+            Card(
+                shape = RoundedCornerShape(25.dp),
+                colors = CardDefaults.cardColors(containerColor = LetsStudyColors.Card),
+                border = BorderStroke(1.dp, LetsStudyColors.Border),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Row(Modifier.padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.size(48.dp)) {
-                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.PlayArrow, null, tint = LetsStudyColors.Primary) }
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("PICK UP WHERE YOU LEFT OFF", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                        Text(latestSession.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = LetsStudyColors.Primary)
-                }
-            }
-        }
-        Spacer(Modifier.height(27.dp))
-        Text("START SOMETHING NEW", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = LetsStudyColors.Clay, letterSpacing = 1.sp)
-        Text("Make a study set", style = MaterialTheme.typography.headlineSmall, color = LetsStudyColors.Ink, modifier = Modifier.padding(top = 4.dp))
-        Text("A job post becomes a focused practice session.", style = MaterialTheme.typography.bodyMedium, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
-
-            Column(Modifier.fillMaxWidth()) {
-                Text("01  THE ROLE", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    SourceTab("Job link", kind == SourceKind.URL, Icons.Outlined.Link, Modifier.weight(1f)) { kind = SourceKind.URL; source = "" }
-                    SourceTab("Paste text", kind == SourceKind.TEXT, Icons.Outlined.Description, Modifier.weight(1f)) { kind = SourceKind.TEXT; source = "" }
-                }
-                Spacer(Modifier.height(13.dp))
-                OutlinedTextField(
-                    value = source,
-                    onValueChange = { source = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(17.dp),
-                    label = { Text(if (isText) "Job description" else "Job listing URL") },
-                    placeholder = { Text(if (isText) "Paste the role description…" else "https://company.com/jobs/…") },
-                    minLines = if (isText) 5 else 1,
-                    maxLines = if (isText) 8 else 3,
-                    supportingText = { Text(if (isText) "Include at least 100 characters." else "Can't read the page? Paste its text instead.") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = LetsStudyColors.Card,
-                        unfocusedContainerColor = LetsStudyColors.Card,
-                    ),
-                )
-
-                Spacer(Modifier.height(12.dp))
-                Text("02  MAKE IT YOURS", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                Spacer(Modifier.height(10.dp))
-                Surface(
-                    onClick = { languageMenu = true },
-                    shape = RoundedCornerShape(15.dp),
-                    color = LetsStudyColors.Canvas,
-                    border = BorderStroke(1.dp, LetsStudyColors.Border),
-                ) {
-                    Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Language, null, tint = LetsStudyColors.Primary, modifier = Modifier.size(19.dp))
+                Column(Modifier.fillMaxWidth().padding(17.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(color = LetsStudyColors.Mint, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(34.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.Bolt, contentDescription = null, tint = LetsStudyColors.Primary, modifier = Modifier.size(19.dp))
+                            }
+                        }
                         Spacer(Modifier.width(9.dp))
-                        Text(language, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.width(18.dp))
-                        Text("▾", color = LetsStudyColors.Muted)
+                        Text("AI INTERVIEW PRACTICE", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp)
                     }
-                    DropdownMenu(expanded = languageMenu, onDismissRequest = { languageMenu = false }) {
-                        listOf("English", "Spanish", "Thai", "Other language").forEach { option ->
-                            DropdownMenuItem(text = { Text(option) }, onClick = { language = option; languageMenu = false })
+                    Text("What role are you preparing for?", style = MaterialTheme.typography.titleLarge, color = LetsStudyColors.Ink, modifier = Modifier.padding(top = 14.dp))
+                    Text("Start with a public job listing or paste its description.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 4.dp, bottom = 15.dp))
+
+                    Text("THE JOB LISTING", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Muted, fontWeight = FontWeight.Bold, letterSpacing = 0.65.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SourceTab("Job link", kind == SourceKind.URL, Icons.Outlined.Link, Modifier.weight(1f)) { kind = SourceKind.URL; source = "" }
+                        SourceTab("Paste text", kind == SourceKind.TEXT, Icons.Outlined.Description, Modifier.weight(1f)) { kind = SourceKind.TEXT; source = "" }
+                    }
+                    Spacer(Modifier.height(11.dp))
+                    OutlinedTextField(
+                        value = source,
+                        onValueChange = { source = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(15.dp),
+                        label = { Text(if (isText) "Job description" else "Job listing URL") },
+                        placeholder = { Text(if (isText) "Paste the role description…" else "https://company.com/jobs/…") },
+                        minLines = if (isText) 4 else 1,
+                        maxLines = if (isText) 8 else 3,
+                        supportingText = { Text(if (isText) "Include at least 100 characters." else "If the page can’t be read, paste its text instead.") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = LetsStudyColors.Card,
+                            unfocusedContainerColor = LetsStudyColors.Card,
+                        ),
+                    )
+
+                    Text("QUESTION LANGUAGE", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Muted, fontWeight = FontWeight.Bold, letterSpacing = 0.65.sp, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+                    Box {
+                        Surface(
+                            onClick = { languageMenu = true },
+                            shape = RoundedCornerShape(14.dp),
+                            color = LetsStudyColors.Canvas,
+                            border = BorderStroke(1.dp, LetsStudyColors.Border),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(Modifier.padding(horizontal = 13.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.Language, contentDescription = null, tint = LetsStudyColors.Primary, modifier = Modifier.size(19.dp))
+                                Spacer(Modifier.width(9.dp))
+                                Text(language, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.weight(1f))
+                                Text("⌄", color = LetsStudyColors.Muted)
+                            }
+                        }
+                        DropdownMenu(expanded = languageMenu, onDismissRequest = { languageMenu = false }) {
+                            listOf("English", "Spanish", "Thai", "Other language").forEach { option ->
+                                DropdownMenuItem(text = { Text(option) }, onClick = { language = option; languageMenu = false })
+                            }
                         }
                     }
-                }
-                if (language == "Other language") {
-                    OutlinedTextField(
-                        value = customLanguage,
-                        onValueChange = { customLanguage = it },
-                        modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
-                        singleLine = true,
-                        label = { Text("Question language") },
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    ModeTile("Fast online", "Quick questions", generationMode == "ONLINE", Icons.Outlined.Bolt, Modifier.weight(1f)) { generationMode = "ONLINE" }
-                    ModeTile("On-device", "Runs on your phone", generationMode == "OFFLINE", Icons.Outlined.Memory, Modifier.weight(1f)) { generationMode = "OFFLINE" }
-                }
-                Text(
-                    if (generationMode == "ONLINE") "Uses the project's free Gemini quota. Job text is sent to Google."
-                    else "No Gemini quota. Download the model once; generation takes longer.",
-                    style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted,
-                    modifier = Modifier.padding(top = 10.dp),
-                )
-                if (generationMode == "OFFLINE") {
-                    Spacer(Modifier.height(12.dp))
-                    ModelSetupCard(modelState, downloadState, onDownloadOnWifi, onDownloadOnMobileData, onCancelModelDownload)
-                }
-                if (isAnalyzing) {
-                    Spacer(Modifier.height(16.dp))
-                    GenerationJourneyCard(generationProgress, generationMode == "ONLINE")
-                }
-                Text("No account needed · Your answers stay on this phone", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 18.dp))
-            }
-        if (errorMessage != null) {
-            Spacer(Modifier.height(13.dp))
-            ErrorBanner(errorMessage, onDismissError)
-        }
-        Spacer(Modifier.height(30.dp))
-    }
-    }
-}
-
-@Composable
-private fun HomeBuildBar(enabled: Boolean, isAnalyzing: Boolean, onClick: () -> Unit) {
-    Surface(color = LetsStudyColors.Canvas, shadowElevation = 8.dp, modifier = Modifier.navigationBarsPadding()) {
-        Button(
-            onClick = onClick,
-            enabled = enabled,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp).height(54.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = LetsStudyColors.Primary),
-        ) {
-            if (isAnalyzing) {
-                CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                Spacer(Modifier.width(9.dp))
-                Text("Making your study set…")
-            } else {
-                Text("Create 15 questions", fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(9.dp))
-                Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(18.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun BrandHeader(onOpenMenu: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onOpenMenu) { Icon(Icons.Outlined.Menu, contentDescription = "Open study sessions", tint = LetsStudyColors.Ink) }
-        Spacer(Modifier.width(4.dp))
-        Text("let'sstudy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = LetsStudyColors.Ink)
-        Spacer(Modifier.weight(1f))
-        Surface(color = LetsStudyColors.Mint, shape = CircleShape) {
-            Text("YOUR STUDY SPACE", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun HeroCard() {
-    Card(shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = LetsStudyColors.DeepPrimary), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(18.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f)) {
-                    Text("YOUR NEXT CHAPTER", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Sun, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    Spacer(Modifier.height(5.dp))
-                    Text("Walk in\nprepared.", style = MaterialTheme.typography.headlineSmall, color = Color.White)
-                }
-                Surface(color = LetsStudyColors.Sun, shape = CircleShape, modifier = Modifier.size(66.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null, modifier = Modifier.size(65.dp))
+                    if (language == "Other language") {
+                        OutlinedTextField(
+                            value = customLanguage,
+                            onValueChange = { customLanguage = it },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            singleLine = true,
+                            label = { Text("Question language") },
+                        )
                     }
+
+                    Text("GENERATION MODE", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Muted, fontWeight = FontWeight.Bold, letterSpacing = 0.65.sp, modifier = Modifier.padding(top = 15.dp, bottom = 8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        ModeTile("Fast online", "Quick generation", generationMode == "ONLINE", Icons.Outlined.Bolt, Modifier.weight(1f)) { generationMode = "ONLINE" }
+                        ModeTile("On-device", "Runs on your phone", generationMode == "OFFLINE", Icons.Outlined.Memory, Modifier.weight(1f)) { generationMode = "OFFLINE" }
+                    }
+                    Text(
+                        if (generationMode == "ONLINE") "Uses the project’s Gemini service. Job text is sent to Google."
+                        else "Download the model once. Generation stays on your phone and takes longer.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = LetsStudyColors.Muted,
+                        modifier = Modifier.padding(top = 9.dp),
+                    )
+                    if (generationMode == "OFFLINE") {
+                        Spacer(Modifier.height(11.dp))
+                        ModelSetupCard(modelState, downloadState, onDownloadOnWifi, onDownloadOnMobileData, onCancelModelDownload)
+                    }
+                    if (isAnalyzing) {
+                        Spacer(Modifier.height(12.dp))
+                        GenerationJourneyCard(generationProgress, generationMode == "ONLINE")
+                    }
+                    Button(
+                        onClick = { onAnalyze(StudyInput(kind, source.trim()), chosenLanguage, generationMode) },
+                        enabled = canAnalyze && !isAnalyzing,
+                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(52.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = LetsStudyColors.Primary),
+                    ) {
+                        if (isAnalyzing) {
+                            CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                            Spacer(Modifier.width(9.dp))
+                            Text("Preparing your questions…")
+                        } else {
+                            Text("Create 15 questions", fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(9.dp))
+                            Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    Text("No account needed · Your answers stay on this phone", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 11.dp))
                 }
             }
-            Text("Practice the role. Learn every answer.", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.85f), modifier = Modifier.padding(top = 7.dp))
+
+            if (errorMessage != null) {
+                Spacer(Modifier.height(14.dp))
+                ErrorBanner(errorMessage, onDismissError)
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
 private fun SourceTab(label: String, selected: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Surface(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(14.dp), color = if (selected) LetsStudyColors.ClayWash else LetsStudyColors.Canvas, border = BorderStroke(1.dp, if (selected) LetsStudyColors.Clay else LetsStudyColors.Border)) {
-        Row(Modifier.padding(horizontal = 11.dp, vertical = 12.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, modifier = Modifier.size(18.dp), tint = if (selected) LetsStudyColors.Clay else LetsStudyColors.Muted)
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(13.dp),
+        color = if (selected) LetsStudyColors.Mint else LetsStudyColors.Canvas,
+        border = BorderStroke(1.dp, if (selected) LetsStudyColors.Primary.copy(alpha = 0.45f) else LetsStudyColors.Border),
+    ) {
+        Row(Modifier.padding(horizontal = 9.dp, vertical = 11.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, modifier = Modifier.size(17.dp), tint = if (selected) LetsStudyColors.Primary else LetsStudyColors.Muted)
             Spacer(Modifier.width(6.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) LetsStudyColors.Ink else LetsStudyColors.Muted, fontWeight = FontWeight.SemiBold)
+            Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) LetsStudyColors.Ink else LetsStudyColors.Muted, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
 
 @Composable
 private fun ModeTile(title: String, detail: String, selected: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Surface(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(17.dp), color = if (selected) LetsStudyColors.Mint else LetsStudyColors.Canvas, border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) LetsStudyColors.Primary else LetsStudyColors.Border)) {
-        Column(Modifier.padding(12.dp)) {
-            Icon(icon, null, tint = LetsStudyColors.Primary, modifier = Modifier.size(19.dp))
-            Spacer(Modifier.height(8.dp))
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(15.dp),
+        color = if (selected) LetsStudyColors.Mint else LetsStudyColors.Canvas,
+        border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) LetsStudyColors.Primary.copy(alpha = 0.55f) else LetsStudyColors.Border),
+    ) {
+        Column(Modifier.padding(11.dp)) {
+            Icon(icon, null, tint = LetsStudyColors.Primary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.height(7.dp))
             Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = LetsStudyColors.Ink)
             Text(detail, style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, maxLines = 2)
         }
@@ -307,14 +316,14 @@ private fun ModeTile(title: String, detail: String, selected: Boolean, icon: and
 
 @Composable
 fun ErrorBanner(message: String, onDismiss: () -> Unit) {
-    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = LetsStudyColors.ClayWash), border = BorderStroke(1.dp, LetsStudyColors.Clay.copy(alpha = 0.35f))) {
-        Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.Top) {
+    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = LetsStudyColors.ClayWash), border = BorderStroke(1.dp, LetsStudyColors.Clay.copy(alpha = 0.35f))) {
+        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.Top) {
             Icon(Icons.Outlined.Info, null, tint = LetsStudyColors.Clay, modifier = Modifier.size(21.dp))
-            Spacer(Modifier.width(11.dp))
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text("Let's try that again", style = MaterialTheme.typography.titleSmall, color = LetsStudyColors.Ink, fontWeight = FontWeight.Bold)
+                Text("Let’s try that again", style = MaterialTheme.typography.titleSmall, color = LetsStudyColors.Ink, fontWeight = FontWeight.Bold)
                 Text(message, color = LetsStudyColors.Ink, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 3.dp))
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Got it", color = LetsStudyColors.Clay) }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Got it", color = LetsStudyColors.Primary) }
             }
         }
     }

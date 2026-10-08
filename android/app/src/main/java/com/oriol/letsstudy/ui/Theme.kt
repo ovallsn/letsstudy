@@ -7,42 +7,58 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.ExperimentalTextApi
+import com.oriol.letsstudy.R
 
-private val ForestColor = Color(0xFF285747)
-private val DeepForestColor = Color(0xFF193A32)
-private val InkColor = Color(0xFF1D302A)
-private val PageCanvas = Color(0xFFF7F5EE)
-private val PaperSurface = Color(0xFFFFFEFA)
-private val SoftSage = Color(0xFFE5EEE4)
-private val SageColor = Color(0xFF789B82)
-private val ClayColor = Color(0xFFB75538)
-private val ClayWashColor = Color(0xFFF9E9DF)
-private val MutedText = Color(0xFF66746C)
-private val Hairline = Color(0xFFDDE2D8)
-private val Sand = Color(0xFFF2EDDF)
-private val SunColor = Color(0xFFF5D99A)
-private val BaseTypography = Typography()
+private val Violet = Color(0xFF5D56DF)
+private val DeepViolet = Color(0xFF4943C9)
+private val InkColor = Color(0xFF20263A)
+private val PageCanvas = Color(0xFFF7F8FB)
+private val PaperSurface = Color(0xFFFFFFFF)
+private val SoftLavender = Color(0xFFF0EFFF)
+private val LavenderColor = Color(0xFF8B83E8)
+private val CoralColor = Color(0xFFE38A4B)
+private val CoralWashColor = Color(0xFFFFF1E7)
+private val MutedText = Color(0xFF626B80)
+private val Hairline = Color(0xFFE9EBF1)
+private val Sand = Color(0xFFF0F1F7)
+private val SunColor = Color(0xFFFFEBD2)
+@OptIn(ExperimentalTextApi::class)
+private fun studyFont(resource: Int) = FontFamily(
+    listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold).map { weight ->
+        Font(resource, weight = weight, variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)))
+    },
+)
+private val BodyFont = studyFont(R.font.dm_sans)
+private val HeadingFont = studyFont(R.font.manrope)
+private val BaseTypography = Typography().let { base -> base.copy(
+    bodyLarge = base.bodyLarge.copy(fontFamily = BodyFont), bodyMedium = base.bodyMedium.copy(fontFamily = BodyFont), bodySmall = base.bodySmall.copy(fontFamily = BodyFont),
+    labelLarge = base.labelLarge.copy(fontFamily = BodyFont), labelMedium = base.labelMedium.copy(fontFamily = BodyFont), labelSmall = base.labelSmall.copy(fontFamily = BodyFont),
+    titleMedium = base.titleMedium.copy(fontFamily = HeadingFont), titleSmall = base.titleSmall.copy(fontFamily = HeadingFont),
+) }
 
 private val LetsStudyTypography = BaseTypography.copy(
-    displayLarge = BaseTypography.displayLarge.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold),
-    displayMedium = BaseTypography.displayMedium.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold),
-    displaySmall = BaseTypography.displaySmall.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold),
-    headlineLarge = BaseTypography.headlineLarge.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold),
-    headlineMedium = BaseTypography.headlineMedium.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold),
-    headlineSmall = BaseTypography.headlineSmall.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold),
-    titleLarge = BaseTypography.titleLarge.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold),
+    displayLarge = BaseTypography.displayLarge.copy(fontFamily = HeadingFont, fontWeight = FontWeight.Bold),
+    displayMedium = BaseTypography.displayMedium.copy(fontFamily = HeadingFont, fontWeight = FontWeight.Bold),
+    displaySmall = BaseTypography.displaySmall.copy(fontFamily = HeadingFont, fontWeight = FontWeight.Bold),
+    headlineLarge = BaseTypography.headlineLarge.copy(fontFamily = HeadingFont, fontWeight = FontWeight.Bold),
+    headlineMedium = BaseTypography.headlineMedium.copy(fontFamily = HeadingFont, fontWeight = FontWeight.Bold),
+    headlineSmall = BaseTypography.headlineSmall.copy(fontFamily = HeadingFont, fontWeight = FontWeight.Bold),
+    titleLarge = BaseTypography.titleLarge.copy(fontFamily = HeadingFont, fontWeight = FontWeight.SemiBold),
 )
 
 @Composable
 fun LetsStudyTheme(content: @Composable () -> Unit) {
     val colors = lightColorScheme(
-        primary = ForestColor,
+        primary = Violet,
         onPrimary = PaperSurface,
-        primaryContainer = SoftSage,
-        onPrimaryContainer = DeepForestColor,
-        secondary = ClayColor,
+        primaryContainer = SoftLavender,
+        onPrimaryContainer = DeepViolet,
+        secondary = CoralColor,
         onSecondary = Color.White,
-        secondaryContainer = ClayWashColor,
+        secondaryContainer = CoralWashColor,
         background = PageCanvas,
         onBackground = InkColor,
         surface = PaperSurface,
@@ -50,26 +66,26 @@ fun LetsStudyTheme(content: @Composable () -> Unit) {
         surfaceVariant = Sand,
         onSurfaceVariant = MutedText,
         outline = Hairline,
-        error = Color(0xFF9D4E40),
+        error = Color(0xFFB84A5A),
         onError = Color.White,
     )
     MaterialTheme(colorScheme = colors, typography = LetsStudyTypography, content = content)
 }
 
 object LetsStudyColors {
-    val Primary = ForestColor
-    val DeepPrimary = DeepForestColor
-    val Mint = SoftSage
-    val Sage = SageColor
-    val Clay = ClayColor
-    val ClayWash = ClayWashColor
+    val Primary = Violet
+    val DeepPrimary = DeepViolet
+    val Mint = SoftLavender
+    val Sage = LavenderColor
+    val Clay = CoralColor
+    val ClayWash = CoralWashColor
     val Muted = MutedText
     val Ink = InkColor
     val Border = Hairline
     val Canvas = PageCanvas
     val Card = PaperSurface
-    val SoftBlue = SoftSage
+    val SoftBlue = SoftLavender
     val Warm = Sand
-    val Coral = Clay
+    val Coral = CoralColor
     val Sun = SunColor
 }

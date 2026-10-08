@@ -256,11 +256,27 @@ class StudyRepositoryTest {
         override fun close() = Unit
     }
 
-    private class FakeStudyDao : StudyDao {
+    internal class FakeStudyDao : StudyDao {
         private val sessions = linkedMapOf<String, StudySessionEntity>()
         private val questions = linkedMapOf<String, StudyQuestionEntity>()
         val savedSessions get() = sessions.values.toList()
         val savedQuestions get() = questions.values.sortedBy(StudyQuestionEntity::position)
+        val savedMessages = mutableListOf<TutorMessageEntity>()
+        val savedActivity = mutableListOf<StudyActivityEntity>()
+        override fun observeAllQuestions(): Flow<List<StudyQuestionEntity>> = flow { emit(savedQuestions) }
+        override fun observeMessages(): Flow<List<TutorMessageEntity>> = flow { emit(savedMessages.toList()) }
+        override fun observeActivity(): Flow<List<StudyActivityEntity>> = flow { emit(savedActivity.toList()) }
+        override suspend fun touchSession(id: String, time: Long) { sessions[id]?.let { sessions[id] = it.copy(lastOpenedAt = time) } }
+        override suspend fun insertMessage(message: TutorMessageEntity) { savedMessages += message }
+        override suspend fun insertActivity(activity: StudyActivityEntity) { savedActivity += activity }
+        override suspend fun deleteMessages(sessionId: String) { savedMessages.removeAll { it.sessionId == sessionId } }
+        override suspend fun deleteActivity(sessionId: String) { savedActivity.removeAll { it.sessionId == sessionId } }
+        override suspend fun clearMessages() { savedMessages.clear() }
+        override suspend fun clearActivity() { savedActivity.clear() }
+        override suspend fun clearQuestions() { questions.clear() }
+        override suspend fun clearSessions() { sessions.clear() }
+        override suspend fun toggleSavedMark(id: String) { questions[id]?.let { questions[id] = it.copy(markedForReview = !it.markedForReview) } }
+        override suspend fun removeSavedMark(id: String) { questions[id]?.let { questions[id] = it.copy(markedForReview = false, reviewSuggested = false) } }
 
         override fun observeSessions(): Flow<List<StudySessionEntity>> = flow { emit(savedSessions) }
         override suspend fun getSession(id: String) = sessions[id]
@@ -271,8 +287,8 @@ class StudyRepositoryTest {
         }
         override suspend fun getQuestions(sessionId: String) = savedQuestions.filter { it.sessionId == sessionId }
         override suspend fun getQuestion(id: String) = questions[id]
-        override suspend fun updateChoice(id: String, choice: Int) {
-            questions[id]?.let { questions[id] = it.copy(selectedOptionIndex = choice) }
+        override suspend fun updateChoice(id: String, choice: Int, answeredAt: Long) {
+            questions[id]?.let { questions[id] = it.copy(selectedOptionIndex = choice, answeredAt = answeredAt, score = if (choice < 0) -1 else if (choice == it.correctOptionIndex) 100 else 0) }
         }
         override suspend fun deleteQuestionsForSession(sessionId: String) {
             questions.values.filter { it.sessionId == sessionId }.map { it.id }.forEach { questions.remove(it) }

@@ -9,11 +9,10 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import androidx.lifecycle.Observer
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 sealed interface ModelDownloadState {
@@ -32,11 +31,11 @@ class ModelDownloadRepository(context: Context) {
     private val appContext = context.applicationContext
     private val workManager = WorkManager.getInstance(appContext)
 
-    fun observeState(): Flow<ModelDownloadState> = flow {
-        while (true) {
-            emit(readState())
-            delay(STATE_POLL_INTERVAL_MILLIS)
-        }
+    fun observeState(): Flow<ModelDownloadState> = callbackFlow {
+        val workInfos = workManager.getWorkInfosForUniqueWorkLiveData(UNIQUE_WORK_NAME)
+        val observer = Observer<List<WorkInfo>> { values -> trySend(readState(values)) }
+        workInfos.observeForever(observer)
+        awaitClose { workInfos.removeObserver(observer) }
     }
 
     fun enqueueDownload(allowMetered: Boolean = false) {
@@ -56,11 +55,8 @@ class ModelDownloadRepository(context: Context) {
         workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
     }
 
-    private suspend fun readState(): ModelDownloadState {
+    private fun readState(workInfos: List<WorkInfo>): ModelDownloadState {
         if (ModelCatalog.modelFile(appContext).isFile) return ModelDownloadState.Ready
-        val workInfos = withContext(Dispatchers.IO) {
-            workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
-        }
         val info = workInfos.firstOrNull() ?: return ModelDownloadState.NotDownloaded
         val progress = info.progress
         val downloaded = progress.getLong(KEY_DOWNLOADED_BYTES, 0L)
@@ -89,6 +85,5 @@ class ModelDownloadRepository(context: Context) {
         internal const val KEY_TOTAL_BYTES = "total_bytes"
         internal const val KEY_STAGE = "stage"
         internal const val KEY_ERROR = "error"
-        private const val STATE_POLL_INTERVAL_MILLIS = 750L
     }
 }

@@ -58,6 +58,16 @@ class FirebaseFastQuestionGenerator : FastQuestionGenerator {
     )
     private val model by lazy { createModel(questionOutputSchema) }
     private val lessonModel by lazy { createModel(lessonOutputSchema) }
+    private val workspaceModel by lazy {
+        Firebase.ai(backend = GenerativeBackend.googleAI()).generativeModel(
+            modelName = "gemini-3.1-flash-lite",
+            generationConfig = generationConfig { responseMimeType = "application/json" },
+        )
+    }
+
+    suspend fun generateWorkspace(prompt: String): String = withTimeoutOrNull(90_000L) {
+        workspaceModel.generateContent(prompt).text
+    } ?: throw InvalidStudyOutputException("The study service took too long. Try again; your saved data is safe.")
 
     private fun createModel(schema: Schema) =
         Firebase.ai(backend = GenerativeBackend.googleAI()).generativeModel(

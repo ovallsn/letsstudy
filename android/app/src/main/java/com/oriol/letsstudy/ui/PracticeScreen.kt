@@ -109,7 +109,7 @@ fun PracticeScreen(
         bottomBar = { PracticeFooter(questionNumber, questionCount, onPreviousQuestion, onNextQuestion, onBack) },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
         ) {
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -251,7 +251,7 @@ private fun MultipleChoiceScreen(
         bottomBar = { PracticeFooter(questionNumber, questionCount, onPreviousQuestion, onNextQuestion, onBack, answered = selected >= 0) },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).navigationBarsPadding()
+            modifier = Modifier.fillMaxSize().padding(padding)
                 .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
         ) {
             Spacer(Modifier.height(10.dp))
@@ -597,7 +597,7 @@ private fun PracticeFooter(
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 12.dp) {
         Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

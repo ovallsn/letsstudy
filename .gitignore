@@ -16,6 +16,7 @@ GoogleService-Info.plist
 # Android Studio / Gradle
 .idea/
 .gradle/
+.kotlin/
 **/build/
 captures/
 .externalNativeBuild/

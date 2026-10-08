@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -109,7 +108,7 @@ fun StudyScreen(
         containerColor = LetsStudyColors.Canvas,
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).navigationBarsPadding(),
+            modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -119,14 +118,14 @@ fun StudyScreen(
                     TextButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(5.dp))
-                        Text("Home")
+                        Text("Studies")
                     }
                     Spacer(Modifier.weight(1f))
                     Surface(color = LetsStudyColors.Mint, shape = CircleShape) {
                         Text("${session.practiceLanguage}", Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = LetsStudyColors.Primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     }
                 }
-                Text("YOUR STUDY PATH", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Clay, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 5.dp))
+                Text("JOB PREPARATION", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 5.dp))
                 Text(session.title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 5.dp))
                 Text(sourceDisplay, style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                 Spacer(Modifier.height(12.dp))
@@ -235,31 +234,32 @@ private fun ContinueStudyCard(question: StudyQuestionEntity, answered: Int, tota
 private fun SessionOverviewCard(total: Int, answered: Int, correct: Int, review: Int) {
     Card(
         shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = LetsStudyColors.DeepPrimary),
+        colors = CardDefaults.cardColors(containerColor = LetsStudyColors.Card),
+        border = androidx.compose.foundation.BorderStroke(1.dp, LetsStudyColors.Border),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.WorkOutline, null, tint = LetsStudyColors.Sun, modifier = Modifier.size(21.dp))
+                Icon(Icons.Outlined.WorkOutline, null, tint = LetsStudyColors.Primary, modifier = Modifier.size(21.dp))
                 Spacer(Modifier.width(9.dp))
-                Text("YOUR PROGRESS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = LetsStudyColors.Sun)
+                Text("YOUR PROGRESS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = LetsStudyColors.Primary)
             }
             Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 8.dp)) {
-                Text("$answered / $total", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+                Text("$answered / $total", style = MaterialTheme.typography.headlineSmall, color = LetsStudyColors.Ink)
                 Spacer(Modifier.width(9.dp))
-                Text("questions answered", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.78f), modifier = Modifier.padding(bottom = 3.dp))
+                Text("questions answered", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(bottom = 3.dp))
             }
             Spacer(Modifier.height(9.dp))
             LinearProgressIndicator(
                 progress = { if (total == 0) 0f else answered.toFloat() / total },
                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                color = LetsStudyColors.Sun,
-                trackColor = Color.White.copy(alpha = 0.19f),
+                color = LetsStudyColors.Primary,
+                trackColor = LetsStudyColors.Mint,
             )
             Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("$correct correct", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Sun)
+                Text("$correct correct", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Primary)
                 Spacer(Modifier.width(16.dp))
-                Text("$review saved for review", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.82f))
+                Text("$review saved for review", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Muted)
             }
         }
     }

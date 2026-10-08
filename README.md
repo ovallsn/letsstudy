@@ -4,23 +4,44 @@
 
 > **Not feeling ready for your next interview? Let’sStudy turns a job description into focused practice, one question at a time.**
 
-Let’sStudy is a native Android study app for people preparing for a specific job interview. It turns a public job listing or pasted job description into practical, four-option questions about the role and its domain. Learners can work through one question at a time, understand why an answer is right, review their progress later, and ask for a deeper lesson when a concept is unfamiliar.
+Let’sStudy is a native Android study app for preparing with purpose. It turns job descriptions into role-specific interview practice, and helps anyone build a study path around a subject, a language, or their own documents. Someone preparing for a technical interview can study likely questions; another learner can study European law from material they trust or practise English from a level that suits them. Each answer includes an explanation. Studies are saved on the phone and can optionally sync across devices with a Firebase account.
+
+## A workspace built for learning
+
+- **Interview preparation:** public job URLs or pasted descriptions, domain-specific questions, mock interview rounds, typed answers and optional Android dictation.
+- **Learn beyond interviews:** build a path for any topic or language with a goal, starting level, pace, target date and ordered modules. “Assess me” starts with a diagnostic module; it does not claim a certified assessment.
+- **Bring study material:** import text PDFs, PPTX presentations or TXT files and preview their extracted text. Limits: 10 MB, 100 pages/slides and the first 18,000 characters. Scanned PDFs require pasted text; OCR is not included.
+- **Nine practice formats:** multiple choice, true/false, open answers, fill-in-the-blank, flashcards, scenarios, interview answers, code/commands and vocabulary. Code is studied as text and never executed.
+- **Understand the answer:** immediate explanations, reference answers, saved deeper lessons and a contextual AI tutor. Objective answers and recall ratings are scored locally; written feedback is an explicit AI request.
+- **Stay organised:** searchable studies/jobs, history, saved questions, confirmed deletion, topic strengths, active paths, streaks and actual foreground study time.
+- **Sync when you choose:** study as a guest, or create an optional account to sync your private study library across Android devices.
+- **Make it personal:** choose a display name and unique username for your private learner profile, set a default study language, and use optional daily reminders and weekly summaries.
+
+The interface is built for portrait Android use with native Compose controls, shared visual components and readable scrolling screens.
 
 ## The learner experience
 
 1. **Start with a job listing.** Paste a public HTTPS URL or the listing text, then choose English, Spanish, Thai, or another question language.
 2. **Practise likely interview questions.** The first round has 15 multiple-choice questions, each with four plausible options, one marked answer, and a short explanation. Questions are shaped around the advertised duties and relevant industry context; unsupported company-specific details are identified as inferences.
-3. **Learn as you go.** After choosing an answer, the app explains the idea and lets the learner move directly to the next question. The answer and review state are saved on the device.
+3. **Learn as you go.** After choosing an answer, the app explains the idea and lets the learner move directly to the next question. The answer and review state are saved on the device and sync when the learner has opted in.
 4. **Go deeper when needed.** “Learn this topic” requests an optional mini-lesson with a definition, how it works, a practical example, key terms, and a takeaway. The lesson is saved with its question and can be reopened offline. The first lesson request uses one additional shared Gemini request; reopening it does not.
 5. **Keep practising.** Each “Add 15 questions” action asks for a fresh round based on the role and earlier questions; repeated questions are rejected. Sessions, choices, written-answer feedback, and saved questions remain available in the study library.
 
 ## App preview
 
-The debug preview uses a sample Bitcoin-mining support role. Its sample content is local and does not consume Gemini quota.
+Screenshots show the current native Android interface with fictional study content captured in an isolated emulator. Sample sessions and learner data are not included in production builds.
 
-| Home | Study path | Multiple choice | Answer explanation | Session library |
+| Home | Choose a study path | Job preparation | Interview learning path | Topic learning path |
 | --- | --- | --- | --- | --- |
-| <img src="docs/screenshots/home.png" alt="Let’sStudy home screen" width="165"> | <img src="docs/screenshots/study-path.png" alt="Study progress and question list" width="165"> | <img src="docs/screenshots/question.png" alt="Four-option interview practice" width="165"> | <img src="docs/screenshots/explanation.png" alt="Answer explanation with next-question action" width="165"> | <img src="docs/screenshots/library.png" alt="Saved study sessions" width="165"> |
+| <img src="docs/screenshots/home.png" alt="Home with interview and topic study entry points" width="150"> | <img src="docs/screenshots/study-options.png" alt="Start a topic, job interview or material-based study" width="150"> | <img src="docs/screenshots/job-preparation.png" alt="Set the question language and generation mode for interview practice" width="150"> | <img src="docs/screenshots/study-path.png" alt="Interview learning path about Bitcoin mining support" width="150"> | <img src="docs/screenshots/topic-path.png" alt="Topic learning path about how EU law is made" width="150"> |
+
+| Multiple-choice practice | Understand the concept | Study library | Import material |
+| --- | --- | --- | --- |
+| <img src="docs/screenshots/question.png" alt="Four-option multiple-choice question about ASIC miners" width="165"> | <img src="docs/screenshots/explanation.png" alt="Detailed ASIC explanation, how it works and a practical example" width="165"> | <img src="docs/screenshots/library.png" alt="Searchable library with job and topic study paths" width="165"> | <img src="docs/screenshots/material-import.png" alt="Import a PDF, presentation or text file to create a study path" width="165"> |
+
+| Study tutor | Saved questions | Learning progress | Optional profile and sync |
+| --- | --- | --- | --- |
+| <img src="docs/screenshots/tutor.png" alt="Contextual study tutor conversation about ASIC miners" width="165"> | <img src="docs/screenshots/saved.png" alt="Saved questions ready to practise again" width="165"> | <img src="docs/screenshots/progress.png" alt="Study streak, answer mastery and topic strengths" width="165"> | <img src="docs/screenshots/profile-sync.png" alt="Optional private profile and consent for account sync" width="165"> |
 
 ## AI modes and limits
 
@@ -30,25 +51,35 @@ The project owner can review usage and model limits in [Google AI Studio](https:
 
 **On-device** is an optional alternative using Gemma 4 E2B through LiteRT-LM. It requires a one-time download of about 2.59 GB and can take several minutes to generate a round. After the model is downloaded, pasted job text can be studied without sending the listing to a generation service. Public URLs still need an internet connection to load. On-device mode is separate from the optional deeper lesson, which currently uses the online Gemini service on first generation.
 
-Learners do not need a ChatGPT or Gemini account. The app owner supplies Firebase configuration for their own build and is responsible for monitoring the shared Gemini quota.
+Learners do not need a ChatGPT or Gemini account. A Let’sStudy account is optional and is used only to sync study data between devices. It does not increase the app’s shared Gemini quota. The app owner supplies Firebase configuration for their own build and is responsible for monitoring that quota.
 
 ## Privacy and accuracy
 
 - Job URLs are fetched by the Android app. Pages that require sign-in or block automated access must be pasted into the app by the learner.
-- Fast online sends extracted job text and question-generation context to Firebase AI Logic. When the learner asks for a concept lesson, that request also includes the relevant question, answer choices, correct answer, explanation, and role context. The learner’s own answers and saved progress are not sent for question generation or concept lessons.
-- Sessions, selected choices, saved questions, and generated lessons are stored locally in Room. Cached lessons can be read offline.
+- Fast online sends relevant material and request context to Google through Firebase AI Logic. Written feedback includes the submitted answer; tutor requests include bounded history and study context. A one-time in-app disclosure explains online processing.
+- Sessions, answers, bookmarks, lessons, tutor messages and progress are saved locally in Room. Android backup is disabled. Cached content can be read offline; uninstalling removes local study data.
+- Account sync is optional. After the learner accepts the in-app disclosure, the app stores the private profile and copies study material and source context, questions, answers, saved lessons, tutor conversations and progress to Firestore under that learner’s Firebase user ID. Firebase Authentication manages account credentials; Let’sStudy does not store passwords. Sign-out syncs and clears the account’s study cache from that phone. Account deletion removes the profile, username reservation, cloud records and Firebase account.
+- Learner profiles and study records are private and owner-only. Authenticated users can check whether one exact username is reserved; the reservation stores no account ID, and collection listing is denied. Usernames are not publicly displayed. Any future leaderboard would use a separate projection and opt-in.
+- The project owner must publish the current [`firestore.rules`](firestore.rules) before profile creation and cloud sync can work. These rules preserve owner-only access and add the exact-document username check. This repository update does not publish rules to Firebase Console. Do not enable public read/write rules.
 - On-device generation keeps listing text and prompts on the phone. The model file is downloaded from Hugging Face to app-private storage.
 - AI-generated material can be incomplete or incorrect. Learners should verify technical commands, safety guidance, and company-specific claims before relying on them.
-- Let’sStudy currently focuses on interview preparation from job listings or pasted descriptions. General-topic study and presentation/PDF import are not implemented.
+- Topic paths use model knowledge and imported text; they do not perform live legal or factual verification.
+
+### Request budget
+
+A topic/document plan makes one request. An online round makes one for 15 questions; a mock interview makes one for five. On-device rounds use batches of up to five. Written feedback, the first deeper lesson and each tutor message are separate requests. Tutor and first deeper lessons use online Gemini even for on-device paths. Saved content, objective scoring, flashcard ratings, progress and reminders make no AI requests. New workspace actions do not automatically retry failures.
 
 ## Technology
 
 - Kotlin and Jetpack Compose for the Android app and interface.
 - Room for local sessions, answers, question review, and cached concept lessons.
+- Firebase Authentication for optional email accounts and Cloud Firestore for UID-scoped study synchronization.
 - Firebase AI Logic and Gemini 3.1 Flash-Lite for fast online question and lesson generation.
 - LiteRT-LM and Gemma 4 E2B for optional on-device question generation.
 - WorkManager and resumable, checksum-verified model download support.
 - Jsoup and a bounded HTTPS reader for public job pages.
+- PDFBox Android for text PDF extraction and bounded XML parsing for PPTX.
+- DM Sans and Manrope under the SIL Open Font License.
 
 The main app lives in `android/`. Architecture notes are in [`docs/architecture.md`](docs/architecture.md), product/design notes in [`docs/design-notes.md`](docs/design-notes.md), and model attribution in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
@@ -64,7 +95,12 @@ The main app lives in `android/`. Architecture notes are in [`docs/architecture.
 1. Enable **Firebase AI Logic** for the Firebase project and configure the **Gemini Developer API**.
 2. In Firebase project settings, register the Android app with package name `com.oriol.letsstudy` and download its `google-services.json`.
 3. Place that file at `android/app/google-services.json`. It is intentionally ignored by Git; each developer supplies their own Firebase configuration.
-4. Configure Firebase App Check. For a local debug build, use the debug provider and register the token printed in Logcat under **Firebase Console → App Check → Apps → Manage debug tokens**. Keep the token private and out of source control. For a distributed release, configure Play Integrity and the release signing certificate.
+4. In **Authentication → Sign-in method**, enable **Email/Password**. It is enabled in the original `letsstudy-3fc1d` project. Learners can still study without creating an account.
+5. Create a **Cloud Firestore** database in production mode. The original `letsstudy-3fc1d` project uses `asia-southeast3` (Bangkok); Firestore's database location cannot be changed after creation. For another project, select the region where most early learners are located. Keep the project on Firebase’s Spark plan unless the maintainer chooses to add billing.
+6. Publish the current access policy from [`firestore.rules`](firestore.rules) in **Firestore Database → Rules**. It keeps profiles and study records private to their owner and permits only exact username-availability reads for signed-in users. The original `letsstudy-3fc1d` project needs this profile-aware version before the new account profile flow works; updating this repository does not change Firebase Console rules.
+7. Configure Firebase App Check. For a local debug build, use the debug provider and register the token printed in Logcat under **Firebase Console → App Check → Apps → Manage debug tokens**. Keep the token private and out of source control. For a distributed release, configure Play Integrity and the release signing certificate.
+
+Firestore sync uses the project’s free usage allowance when available. It is finite, shared by the Firebase project and separate from Gemini’s request quota. Check the [Firebase pricing page](https://firebase.google.com/pricing) before inviting many users; the app does not enable billing or upgrade the project.
 
 Build a debug APK from the Android project directory:
 
@@ -74,6 +110,8 @@ cd android
 ```
 
 The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. A successful build checks compilation; Firebase configuration, App Check, online generation, and device-specific on-device inference require separate validation.
+
+Run `./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleRelease` for checks and the distribution build. The release APK is unsigned until the maintainer supplies private signing configuration. Debug builds require device-specific App Check registration and are intended for development.
 
 ## License
 

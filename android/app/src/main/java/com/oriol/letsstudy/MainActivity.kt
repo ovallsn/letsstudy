@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import com.oriol.letsstudy.ui.LetsStudyApp
+import com.oriol.letsstudy.ui.StudyWorkspaceApp
 import com.oriol.letsstudy.ui.LetsStudyTheme
 import com.oriol.letsstudy.ui.LetsStudyViewModel
 
@@ -15,7 +15,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             LetsStudyTheme {
-                LetsStudyApp(viewModel)
+                StudyWorkspaceApp(viewModel)
             }
         }
     }

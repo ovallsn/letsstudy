@@ -1,8 +1,16 @@
 # Let’sStudy design notes
 
+## MagicPath Study Workspace implementation
+
+The selected “Let’s Study — Study Workspace” revision is the visual source of truth. Its portrait home screen uses a left-aligned menu and page title, compact search/reminder/profile actions, a date and personal greeting, a streak chip, one prominent AI study composer, two compact shortcuts, and five quiet bottom-navigation destinations. The Compose implementation adapts this hierarchy to Android safe areas and scrolling while retaining the project's DM Sans and Manrope typefaces, violet accents, soft lavender surfaces, and white cards.
+
+The same shared header, card treatment, and bottom navigation carry through the existing study, job preparation, library, progress, and settings flows. Home's composer creates the same topic path as the dedicated topic form; its job shortcut opens the existing job-offer flow. Material import remains available from New study. Saved studies, answers, explanations, tutor conversations, and progress remain backed by local Room records.
+
+The canvas shows profile initials but no sign-in or account flow; the implemented app extends that reference with optional Firebase Authentication and private, consent-based Firestore sync. Guest study remains local to the phone. Unsupported OCR, code execution, and live legal verification are not represented as working features.
+
 ## Product idea
 
-Interview study should feel calm, personal, and easy to continue. A job offer becomes a route of short questions. Each answer teaches a concept; learners can revisit it later without spending another AI request.
+Let’sStudy turns a goal into a manageable learning path. For interview preparation, the job description sets the context; for other goals, the learner's topic or study material does. Every path combines repeatable practice, clear explanations and saved progress, without requiring learners to bring an AI account.
 
 ## Competitor patterns reviewed
 
@@ -13,11 +21,11 @@ Interview study should feel calm, personal, and easy to continue. A job offer be
 | [Duolingo](https://blog.duolingo.com/new-duolingo-home-screen-design/) | A visible path and repeatable practice | Show progress through the set and let learners move to the next question without returning to a list. |
 | [Khan Academy](https://blog.khanacademy.org/how-should-people-practice-on-khan-academy/) | Explanatory rationales after an answer | Explain why the correct option works and why a tempting alternative fails. |
 
-These are patterns, not visual assets to copy. Let’sStudy uses its own book-and-sprout mark, forest-green and warm-paper palette, serif headings, and coral accents.
+These are behavior patterns, not visual assets to copy. The selected MagicPath canvas—not the earlier competitor notes—sets the current visual direction: violet, soft lavender, light neutral backgrounds, compact sans-serif navigation, and focused study cards.
 
 ## Full app experience
 
-1. **Home:** start or resume a study set. A guided form separates source, language, and generation mode. Creation shows the real reading and writing stages.
+1. **Home:** a compact AI study composer starts a topic path; “Paste a job offer” and “Study a topic” open the existing focused flows. New study retains document import. A learner can resume a saved study further down the page.
 2. **Library:** a personal shelf of saved sets with dates and languages, plus a clear way to start fresh and a confirmation before deletion.
 3. **Study set:** progress and the next question are shown first. A compact 15-question action sits above a continuous route with all, studied answers, and saved filters.
 4. **Question:** one prompt at a time, four large answer targets, immediate feedback in a focused explanation sheet, and persistent Previous/Next navigation. Older written-answer sets follow the same visual hierarchy.
@@ -26,6 +34,6 @@ These are patterns, not visual assets to copy. Let’sStudy uses its own book-an
 ## Constraints
 
 - Fast online sends one Gemini request per 15-question round. Review, navigation, and retry use saved local data.
-- No account is required for learners. Sessions and choices remain in Room on the phone.
+- Learner sign-in is optional. The avatar opens profile/settings, and sessions and choices remain in Room on the phone unless the learner enables account sync.
 - On-device generation remains available when the shared online quota runs out, with a slower response.
 - Screens should remain readable with larger Android font settings; long questions and explanations scroll, while navigation remains visible.

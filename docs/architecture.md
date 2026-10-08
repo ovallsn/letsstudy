@@ -1,5 +1,17 @@
 # Architecture notes
 
+## Native Study Workspace (0.9)
+
+`MainActivity` opens `StudyWorkspaceApp`, which owns five bottom destinations and drawer routes. `WorkspaceHome`, `WorkspaceLibrary` and `WorkspacePractice` use shared Compose primitives and MagicPath typography/color tokens. Older screens remain but are not the main workspace entry point.
+
+`LetsStudyViewModel` owns cancellable generation jobs, synchronous submission guards and Room observers. `StudyWorkspace` validates topic plans, nine practice formats, feedback and tutor output before saving. Online rounds use one request; local rounds use five-question batches. Tutor always uses explicit online generation. Pending written answers and tutor messages survive failed requests.
+
+Room version 5 adds synchronization timestamps and deletion tombstones. The additive 4→5 migration preserves prior studies, answers, bookmarks, lessons, tutor messages and activity. Version 6 replaces the unique question-position index with a non-unique ordered index so simultaneous question rounds from multiple devices cannot replace one another. Local session deletions are retained as tombstones until they reach the signed-in learner’s Firestore collection, then the associated cloud documents are removed. Continuation preserves history timestamps.
+
+`StudyAccountSync` keeps account creation optional. Firebase Authentication manages email credentials; the selected display name is mirrored into its profile metadata. Firestore is authoritative for the private learner profile at `users/{uid}/profile/account`. A canonical lowercase username is reserved in `usernameReservations/{username}` in the same transaction as profile creation or change. Authenticated clients can read one exact reservation document to check availability; they cannot list reservations, and reservation documents contain no account ID. Firestore rules connect profile and reservation changes with `getAfter`, while profile reads remain owner-only. Incomplete profiles remain signed in, keep existing studies available, and can be completed from Settings without creating another Auth account. Room remains the local study store; after explicit consent, Firestore synchronizes flat, UID-scoped documents for sessions, questions, tutor messages, activity and deletion tombstones. A server snapshot is read before local guest records are uploaded. Mutable records use update timestamps with last-write-wins reconciliation; append-only records use stable IDs. Sign-out waits for sync and clears the local account cache; a failed sync leaves the account and local studies in place. Account deletion reauthenticates, removes the flat cloud collection in bounded batches, deletes the profile and reservation together, then deletes the Firebase account. Profile and study data remain private; any future leaderboard needs a separate, consented public projection.
+
+`StudyMaterialReader` handles document URIs with file/page/text/ZIP/XML limits. `StudyPreferences` stores local preferences and schedules permission-aware reminders. Reminders never call AI. Android backups are disabled. Progress is calculated from saved records; sample metrics, fabricated tutor replies and hidden code execution are absent.
+
 ## Study flow
 
 1. The learner provides a public HTTPS job URL or pastes a description, then chooses a question language. `JobOfferReader` extracts structured job data or readable page text on the phone. It does not bypass sign-in, challenge pages, or access controls.
@@ -19,6 +31,8 @@
 - The Firebase Spark plan does not require a billing account, but free quotas are finite, shared by the project, and subject to change. App Check reduces abuse; it does not make generation unlimited.
 - On-device generation sends no listing text to a generation service. The model file is downloaded from Hugging Face into app-private storage and excluded from backups and Git.
 - Firebase configuration, debug App Check tokens, local settings, build output, and signing material are excluded from source control.
+- Account sync is opt-in and separate from Gemini generation. The learner profile is stored under `users/{uid}/profile/account`; source context, imported study material, answers, lessons, tutor messages and progress are stored in Firestore under `users/{uid}/studyData`. `firestore.rules` keeps profile and study reads owner-only and allows authenticated exact-document checks for username availability without collection listing. Sync and profile creation require Email/Password Authentication, a Firestore database and the current published rules.
+- Firestore listeners reconcile while the app is open; local Room records remain available offline and are reconciled again when the app returns online. Local sync metadata does not include passwords or API keys. The Firebase Spark allowance is finite and separate from Gemini’s shared generation quota.
 
 ## Failure states
 
@@ -27,3 +41,4 @@
 - Missing local model: show the one-time download flow.
 - Invalid or incomplete generated JSON: reject it without caching a partial round or lesson.
 - Multiple-choice answers and cached lessons remain available offline after they have been saved.
+- If the Firestore collection or security rules are not configured, account creation may still succeed but sync reports a setup error; local study data remains in Room. Sign-out waits for a successful sync so account-owned studies are not discarded from the device before upload.

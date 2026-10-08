@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAs(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function accountProfilePath(userId) {
+      return /databases/$(database)/documents/users/$(userId)/profile/account;
+    }
+
+    function usernameReservationPath(username) {
+      return /databases/$(database)/documents/usernameReservations/$(username);
+    }
+
+    function validAccountProfile(profile) {
+      return profile.keys().hasOnly(['displayName', 'username', 'updatedAt'])
+        && profile.keys().hasAll(['displayName', 'username', 'updatedAt'])
+        && profile.displayName is string
+        && profile.displayName.size() > 0
+        && profile.displayName.size() <= 80
+        && profile.username is string
+        && profile.username.matches('^[a-z0-9_]{3,20}$')
+        && profile.updatedAt is timestamp;
+    }
+
+    match /users/{userId}/studyData/{documentId} {
+      allow read, write: if signedInAs(userId);
+    }
+
+    match /users/{userId}/profile/{profileId} {
+      allow get: if signedInAs(userId) && profileId == 'account';
+      allow list: if false;
+      allow create: if signedInAs(userId)
+        && profileId == 'account'
+        && validAccountProfile(request.resource.data)
+        && !exists(usernameReservationPath(request.resource.data.username))
+        && existsAfter(usernameReservationPath(request.resource.data.username))
+        && getAfter(usernameReservationPath(request.resource.data.username)).data.username == request.resource.data.username;
+      allow update: if signedInAs(userId)
+        && profileId == 'account'
+        && validAccountProfile(request.resource.data)
+        && (request.resource.data.username == resource.data.username
+          || !exists(usernameReservationPath(request.resource.data.username)))
+        && existsAfter(usernameReservationPath(request.resource.data.username))
+        && getAfter(usernameReservationPath(request.resource.data.username)).data.username == request.resource.data.username;
+      allow delete: if signedInAs(userId)
+        && profileId == 'account'
+        && (!('username' in resource.data)
+          || !existsAfter(usernameReservationPath(resource.data.username)));
+    }
+
+    match /usernameReservations/{username} {
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow create: if request.auth != null
+        && username.matches('^[a-z0-9_]{3,20}$')
+        && request.resource.data.keys().hasOnly(['username'])
+        && request.resource.data.keys().hasAll(['username'])
+        && request.resource.data.username == username
+        && existsAfter(accountProfilePath(request.auth.uid))
+        && getAfter(accountProfilePath(request.auth.uid)).data.username == username;
+      allow update: if false;
+      allow delete: if request.auth != null
+        && resource.data.username == username
+        && exists(accountProfilePath(request.auth.uid))
+        && get(accountProfilePath(request.auth.uid)).data.username == username
+        && (!existsAfter(accountProfilePath(request.auth.uid))
+          || getAfter(accountProfilePath(request.auth.uid)).data.username != username);
+    }
+  }
+}
