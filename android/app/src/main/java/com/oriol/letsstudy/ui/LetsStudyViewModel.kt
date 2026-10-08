@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.IOException
@@ -54,6 +56,7 @@ data class LetsStudyUiState(
     val conceptLessonErrorCodes: Map<String, String> = emptyMap(),
     val messages: List<TutorMessageEntity> = emptyList(),
     val activity: List<StudyActivityEntity> = emptyList(),
+    val placementAttempts: List<StudyPlacementAttemptEntity> = emptyList(),
     val settings: LearnerSettings = LearnerSettings(),
     val account: StudyAccountState = StudyAccountState(),
     val leaderboard: StudyLeaderboardState = StudyLeaderboardState(),
@@ -83,6 +86,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     private val accountSync = StudyAccountSync(dao)
     private val leaderboardRepository = StudyLeaderboardRepository()
     private val preferences = StudyPreferences(application)
+    private val profilePhotoStore = ProfilePhotoStore(application)
     private val workspaceAi = FirebaseFastQuestionGenerator()
     private val workspace = StudyWorkspace(dao) { prompt, mode ->
         if (mode == "ONLINE") workspaceAi.generateWorkspace(prompt)
@@ -97,6 +101,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         } }
         viewModelScope.launch { dao.observeMessages().collectLatest { values -> _uiState.update { it.copy(messages = values) } } }
         viewModelScope.launch { dao.observeActivity().collectLatest { values -> _uiState.update { it.copy(activity = values) } } }
+        viewModelScope.launch { dao.observePlacementAttempts().collectLatest { values -> _uiState.update { it.copy(placementAttempts = values) } } }
         viewModelScope.launch {
             repository.sessions.collectLatest { sessions -> _uiState.update { it.copy(sessions = sessions) } }
         }
@@ -404,11 +409,55 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun saveSettings(settings: LearnerSettings) {
-        val safe = settings.copy(name = settings.name.take(80), reminderHour = settings.reminderHour.coerceIn(0, 23), reminderMinute = settings.reminderMinute.coerceIn(0, 59))
+        val safe = settings.copy(name = settings.name.take(80), avatarId = LearnerAvatarIds.safe(settings.avatarId), reminderHour = settings.reminderHour.coerceIn(0, 23), reminderMinute = settings.reminderMinute.coerceIn(0, 59))
+        if (_uiState.value.settings.photoPath.isNotBlank() && safe.photoPath.isBlank()) profilePhotoStore.delete()
         preferences.save(safe)
         val before = _uiState.value.settings
         if (before.dailyReminder != safe.dailyReminder || before.weeklySummary != safe.weeklySummary || before.reminderHour != safe.reminderHour || before.reminderMinute != safe.reminderMinute) StudyReminders.schedule(getApplication(), safe)
         _uiState.update { it.copy(settings = safe) }
+    }
+
+    fun saveProfilePhoto(uri: android.net.Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(errorMessage = null, workspaceBusy = true, workspaceStatus = "Preparing your profile photo…") }
+            try {
+                val path = withContext(Dispatchers.IO) { profilePhotoStore.save(uri) }
+                saveSettings(_uiState.value.settings.copy(photoPath = path))
+            } catch (error: Exception) {
+                _uiState.update { it.copy(errorMessage = "This photo could not be used. Choose another image and try again.") }
+            } finally {
+                _uiState.update { it.copy(workspaceBusy = false, workspaceStatus = "") }
+            }
+        }
+    }
+
+    fun savePlacementAttempt(result: LanguagePlacementResult, answers: List<Int>, bankVersion: Int, attemptType: String, activePathLevel: String = "") {
+        if (answers.size != result.total || answers.any { it < 0 }) return
+        viewModelScope.launch {
+            val previous = dao.getAllPlacementAttempts()
+                .filter { it.deletedAt == 0L && it.language == result.language }
+                .maxByOrNull { it.completedAt }
+            val previousLevel = LanguageProgression.baselineLevel(activePathLevel, previous?.progressLevel?.ifBlank { previous.startingLevel }).orEmpty()
+            val progression = LanguageProgression.advance(previousLevel.takeIf(String::isNotBlank), result.startingLevel)
+            dao.insertPlacementAttempt(
+                StudyPlacementAttemptEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    language = result.language,
+                    level = result.level,
+                    estimatedRange = result.estimatedRange,
+                    startingLevel = result.startingLevel,
+                    correct = result.correct,
+                    total = result.total,
+                    nextFocus = result.nextFocus,
+                    answersCsv = answers.joinToString(","),
+                    completedAt = System.currentTimeMillis(),
+                    attemptType = attemptType,
+                    bankVersion = bankVersion,
+                    previousLevel = previousLevel,
+                    progressLevel = progression.level,
+                ),
+            )
+        }
     }
 
     fun createAccount(displayName: String, username: String, email: String, password: String) =
@@ -417,6 +466,8 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     fun completeAccountProfile(displayName: String, username: String) = accountSync.completeProfile(displayName, username)
 
     fun updateAccountProfile(displayName: String, username: String) = accountSync.updateProfile(displayName, username)
+
+    fun updateAccountAvatar(avatarId: String) = accountSync.updateAvatar(avatarId)
 
     fun signIn(email: String, password: String) = accountSync.signIn(email, password)
 

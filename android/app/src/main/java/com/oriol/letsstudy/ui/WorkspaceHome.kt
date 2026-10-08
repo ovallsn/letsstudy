@@ -44,16 +44,7 @@ fun WorkspaceHome(state: LetsStudyUiState, onMenu: () -> Unit, onTopic: (String)
                         Text(greetingLine, style = MaterialTheme.typography.titleLarge, color = LetsStudyColors.Ink,
                             fontWeight = FontWeight.Bold, lineHeight = 27.sp)
                     }
-                    Surface(onClick = onProgress, shape = RoundedCornerShape(12.dp), color = LetsStudyColors.ClayWash) {
-                        Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            Icon(Icons.Outlined.LocalFireDepartment, null, Modifier.size(17.dp), tint = LetsStudyColors.Clay)
-                            Column(verticalArrangement = Arrangement.spacedBy((-2).dp)) {
-                                Text("${studyStreak(state.allQuestions, state.activity)} day", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Ink, fontWeight = FontWeight.SemiBold)
-                                Text("streak", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Muted)
-                            }
-                        }
-                    }
+                    StudyStreakChip(studyStreak(state.allQuestions, state.activity), onClick = onProgress)
                 }
                 Text("Prepare for an interview or learn something new.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
@@ -137,7 +128,7 @@ fun WorkspaceNewStudy(onMenu: () -> Unit, onTopic: () -> Unit, onJob: () -> Unit
 }
 
 @Composable
-fun WorkspaceTopicSetup(state: LetsStudyUiState, initialTopic: String, materialMode: Boolean, onMenu: () -> Unit, onImport: (android.net.Uri) -> Unit, onCreate: (StudySetup) -> Unit, initialLevel: String = "", initialLanguage: String = "", initialGoal: String = "") {
+fun WorkspaceTopicSetup(state: LetsStudyUiState, initialTopic: String, materialMode: Boolean, onMenu: () -> Unit, onImport: (android.net.Uri) -> Unit, onCreate: (StudySetup) -> Unit, initialLevel: String = "", initialLanguage: String = "", initialGoal: String = "", initialKind: String = "TOPIC") {
     var topic by rememberSaveable(initialTopic, materialMode) { mutableStateOf(initialTopic) }
     var goal by rememberSaveable(initialTopic, initialGoal, materialMode) { mutableStateOf(initialGoal) }
     var level by rememberSaveable(initialTopic, initialLevel, materialMode) { mutableStateOf(initialLevel.ifBlank { "Beginner" }) }
@@ -180,7 +171,7 @@ fun WorkspaceTopicSetup(state: LetsStudyUiState, initialTopic: String, materialM
                 WorkspaceField(language, { language = it }, "Study language", maxLength = 80)
                 WorkspaceSelect("Generation", if (mode == "ONLINE") "Fast online" else "On-device", listOf("Fast online", "On-device")) { mode = if (it == "Fast online") "ONLINE" else "OFFLINE" }
                 Button({ onCreate(StudySetup(topic.trim(), goal.trim(), level, intensity, target.trim(), language.trim(), mode,
-                    if (materialMode) "MATERIAL" else "TOPIC", if (materialMode) state.importedMaterial?.text.orEmpty() else "", if (materialMode) state.importedMaterial?.name.orEmpty() else "")) },
+                    if (materialMode) "MATERIAL" else initialKind, if (materialMode) state.importedMaterial?.text.orEmpty() else "", if (materialMode) state.importedMaterial?.name.orEmpty() else "")) },
                     Modifier.fillMaxWidth(), enabled = topic.trim().length >= 3 && language.isNotBlank() && (!materialMode || state.importedMaterial != null) && !state.workspaceBusy) { Text("Build my learning path") }
             }
         }

@@ -21,6 +21,11 @@ data class LanguagePlacementResult(
     val nextFocus: String,
 )
 
+fun StudyPlacementAttemptEntity.answers(): List<Int> = answersCsv.split(',').mapNotNull(String::toIntOrNull)
+
+fun StudyPlacementAttemptEntity.toPlacementResult(): LanguagePlacementResult =
+    LanguagePlacementTest.result(language, answers(), bankVersion)
+
 object LanguagePlacementTest {
     val languages = listOf("English", "Spanish", "French", "Thai")
     val bands = listOf("A1", "A2", "B1", "B2", "C1")
@@ -115,10 +120,104 @@ object LanguagePlacementTest {
         ),
     )
 
-    fun questions(language: String): List<LanguagePlacementQuestion> = banks[language] ?: banks.getValue("English")
+    private val alternateBanks = mapOf(
+        "English" to listOf(
+            item("A1", "Those ___ my keys.", 0, "Use ‘are’ with the plural subject ‘those’. ", "are", "is", "am", "be"),
+            item("A1", "Does he ___ near here?", 1, "After ‘does’, use the base form ‘live’. ", "lives", "live", "living", "lived"),
+            item("A1", "We ___ lunch at noon.", 2, "Use ‘have’ for a regular meal or routine. ", "has", "having", "have", "had"),
+            item("A1", "Where ___ she work?", 0, "Present-simple questions with ‘she’ use ‘does’. ", "does", "do", "is", "has"),
+            item("A2", "She has worked here ___ two years.", 2, "Use ‘for’ with a length of time. ", "since", "during", "for", "from"),
+            item("A2", "We were eating when the phone ___. ", 1, "A short event interrupting an action takes the simple past ‘rang’. ", "was ringing", "rang", "has rung", "rings"),
+            item("A2", "There isn’t ___ milk left.", 2, "‘Milk’ is uncountable, so use ‘much’ in a negative sentence. ", "many", "few", "much", "several"),
+            item("A2", "The shop is ___ than the bank.", 0, "Use the comparative adjective ‘closer’ before ‘than’. ", "closer", "closest", "close", "more close"),
+            item("B1", "She asked me where I ___.", 1, "In reported speech about the past, ‘live’ usually shifts to ‘lived’. ", "live", "lived", "have lived", "am living"),
+            item("B1", "The report ___ by Ana yesterday.", 2, "The past passive is ‘was’ plus the past participle. ", "wrote", "has written", "was written", "is writing"),
+            item("B1", "I wish I ___ drive.", 0, "Use a past form after ‘wish’ for a present situation you want to change. ", "could", "can", "will", "am able"),
+            item("B1", "We stopped ___ to check the map.", 3, "‘Stop to do’ means pause another activity in order to do something. ", "checking", "checked", "check", "to check"),
+            item("B2", "Only after the meeting ___ why the proposal had changed.", 1, "A fronted ‘only after’ phrase triggers subject–auxiliary inversion. ", "we understood", "did we understand", "we did understood", "had we understand"),
+            item("B2", "The team acted as though it ___ the final decision.", 0, "Use the past perfect for an imagined earlier action. ", "had made", "has made", "would make", "makes"),
+            item("B2", "I’d sooner you ___ the details until the review ends.", 2, "‘Would sooner’ about another person’s action takes a past form. ", "don’t share", "won’t share", "didn’t share", "not sharing"),
+            item("B2", "Not until the data was checked ___ the error.", 3, "A sentence beginning ‘not until’ uses inversion in the main clause. ", "the team identified", "identified the team", "the team did identify", "did the team identify"),
+            item("C1", "Whatever the outcome, we will proceed ___. ", 2, "‘As planned’ is an adverbial phrase describing how the team will proceed. ", "as planning", "to planned", "as planned", "like plan"),
+            item("C1", "Had it not been for the warning, we ___ the deadline.", 1, "This inverted third conditional takes ‘would have’ plus a past participle. ", "miss", "would have missed", "will miss", "had missed"),
+            item("C1", "Her account is persuasive, not least ___ it is supported by independent records.", 0, "‘Not least because’ introduces an especially important reason. ", "because", "although", "whereas", "unless"),
+            item("C1", "The issue is so nuanced that it ___ easy categorisation.", 3, "‘Defy’ means resist or not fit a simple description. ", "avoids to", "is defying to", "doesn’t defy to", "defies"),
+        ),
+        "Spanish" to listOf(
+            item("A1", "Mis amigos ___ en Madrid.", 2, "Use ‘viven’ with the plural subject ‘mis amigos’. ", "vivo", "vive", "viven", "vivimos"),
+            item("A1", "¿___ tienes una hermana?", 0, "The question asks whether ‘you’ have a sister: ‘¿Tienes…?’ ", "Tienes", "Tiene", "Tenemos", "Tener"),
+            item("A1", "La tienda ___ a las nueve.", 1, "A shop opening time uses ‘abre’. ", "abren", "abre", "abro", "abrir"),
+            item("A1", "Nosotros ___ español en clase.", 3, "The ‘nosotros’ form of ‘estudiar’ is ‘estudiamos’. ", "estudian", "estudio", "estudiáis", "estudiamos"),
+            item("A2", "Cuando era pequeña, ___ al parque cada tarde.", 1, "A repeated past habit takes the imperfect ‘iba’. ", "fui", "iba", "iré", "he ido"),
+            item("A2", "Este regalo es ___ mi hermana.", 3, "Use ‘para’ to identify the intended recipient. ", "por", "desde", "con", "para"),
+            item("A2", "¿Puedes ___ la puerta, por favor?", 0, "After ‘puedes’, use the infinitive ‘cerrar’. ", "cerrar", "cierras", "cerrada", "cerrando"),
+            item("A2", "A Marta ___ gustan los libros de historia.", 2, "‘Gustar’ agrees with plural ‘libros’: ‘le gustan’. ", "la", "lo", "le", "les"),
+            item("B1", "Me alegra que tus padres ___ venir mañana.", 0, "An emotional reaction followed by ‘que’ takes the subjunctive ‘puedan’. ", "puedan", "pueden", "podrán", "podían"),
+            item("B1", "El edificio ___ el año pasado.", 3, "The passive-style ‘se’ construction uses ‘construyó’ for a completed past event. ", "construye", "construía", "ha construido", "se construyó"),
+            item("B1", "Si tuviera más tiempo, ___ un segundo idioma.", 2, "The second conditional pairs ‘si tuviera’ with ‘estudiaría’. ", "estudio", "estudiaré", "estudiaría", "estudiaba"),
+            item("B1", "No encontramos a nadie que ___ ayudarnos.", 1, "An unknown person sought in a negative clause takes the subjunctive. ", "puede", "pueda", "podía", "pudo"),
+            item("B2", "Por mucho que ___, no consiguió cambiar la decisión.", 2, "‘Por mucho que’ takes the subjunctive in this concessive clause. ", "insistía", "insistió", "insistiera", "insiste"),
+            item("B2", "No solo mejoró el servicio, ___ también redujo los costes.", 0, "The paired structure is ‘no solo…, sino que también…’. ", "sino que", "pero", "aunque", "por eso"),
+            item("B2", "De haber recibido el aviso, nos ___ preparado antes.", 3, "An unreal past condition uses ‘habríamos’ plus the participle. ", "hemos", "habíamos", "hubiéramos", "habríamos"),
+            item("B2", "La medida, ___ eficaz en algunos casos, no resuelve todos los problemas.", 1, "‘Aunque’ introduces a concession followed by the indicative here. ", "a pesar", "aunque", "por lo tanto", "con tal de"),
+            item("C1", "El comité aprobó la propuesta, ___ las reservas planteadas por varios miembros.", 0, "‘Pese a’ introduces a noun phrase that contrasts with the decision. ", "pese a", "por lo que", "a fin de", "conforme"),
+            item("C1", "No es que la evidencia ___ insuficiente, sino que aún debe interpretarse.", 2, "‘No es que’ commonly introduces the subjunctive ‘sea’. ", "es", "será", "sea", "fuera"),
+            item("C1", "La decisión fue cuestionada, no tanto por su coste ___ por sus consecuencias.", 1, "The contrastive pairing is ‘no tanto…, sino por…’. ", "como", "sino", "aunque", "mientras"),
+            item("C1", "Cuanto más se contrastan las fuentes, ___ resulta la conclusión.", 3, "The paired comparative is ‘cuanto más…, más sólida’. ", "muy sólida", "la más sólida", "tan sólida", "más sólida"),
+        ),
+        "French" to listOf(
+            item("A1", "Tu ___ souvent le bus.", 1, "The second-person present form of ‘prendre’ is ‘prends’. ", "prend", "prends", "prenons", "prendre"),
+            item("A1", "Nous n’___ pas de voiture.", 2, "The first-person plural form of ‘avoir’ is ‘avons’. ", "a", "ont", "avons", "avez"),
+            item("A1", "Quel âge ___-tu ?", 3, "The expression is ‘Quel âge as-tu ?’ ", "est", "es", "a", "as"),
+            item("A1", "Les enfants ___ dans le jardin.", 0, "The plural subject takes ‘jouent’. ", "jouent", "joue", "jouons", "jouez"),
+            item("A2", "Quand j’étais petite, je ___ au bord de la mer.", 2, "A repeated or descriptive past situation uses the imparfait ‘vivais’. ", "vis", "ai vécu", "vivais", "vivrai"),
+            item("A2", "Il faut acheter ___ pain pour le dîner.", 1, "Use the partitive article ‘du’ with an unspecified amount of bread. ", "de la", "du", "des", "un"),
+            item("A2", "Nous irons au musée ___ il pleut.", 3, "‘Même s’il pleut’ means ‘even if it rains’. ", "malgré", "pendant", "parce qu’il", "même s’il"),
+            item("A2", "Elle vient ___ finir son travail.", 0, "‘Venir de’ plus an infinitive describes something just completed. ", "de", "à", "pour", "en"),
+            item("B1", "Je ne savais pas qu’il ___ déjà.", 2, "The departure happened before another past event: ‘était parti’. ", "est parti", "partira", "était parti", "part"),
+            item("B1", "Il faut que tu ___ ce formulaire.", 1, "‘Il faut que’ is followed by the subjunctive ‘remplisses’. ", "remplis", "remplisses", "rempliras", "remplissais"),
+            item("B1", "Si nous avions réservé, nous ___ une table.", 0, "A past unreal condition takes the conditional perfect ‘aurions eu’. ", "aurions eu", "avons eu", "aurons", "avions"),
+            item("B1", "Elle a continué à travailler ___ elle était malade.", 3, "‘Même si’ introduces a concession followed by the indicative. ", "bien qu’", "malgré qu’", "afin qu’", "même si"),
+            item("B2", "Ce n’est qu’après son départ ___ compris la décision.", 2, "The paired structure is ‘ce n’est qu’après… que…’. ", "qui j’ai", "dont j’ai", "que j’ai", "où j’ai"),
+            item("B2", "Il a nié ___ les documents.", 0, "‘Nier’ can be followed by the infinitive passé ‘avoir modifié’. ", "avoir modifié", "à modifier", "de modifier", "modifiant à"),
+            item("B2", "Il faudrait que chacun ___ sa part.", 3, "‘Il faudrait que’ takes the subjunctive ‘fasse’. ", "fait", "fera", "faisait", "fasse"),
+            item("B2", "___ soient les difficultés, ils ont terminé.", 1, "‘Quelles que soient’ agrees with the feminine plural noun ‘difficultés’. ", "Quelque", "Quelles que", "Quels que", "Quelle que"),
+            item("C1", "Encore faut-il que les résultats ___ confirmés.", 2, "The subjunctive ‘soient’ follows ‘il faut que’. ", "sont", "seront", "soient", "étaient"),
+            item("C1", "Il n’en demeure pas moins ___ la décision doit être réexaminée.", 0, "The fixed expression is ‘il n’en demeure pas moins que’. ", "que", "dont", "si", "où"),
+            item("C1", "Pour peu qu’il ___ davantage, le projet aboutira.", 3, "‘Pour peu que’ is followed by the subjunctive ‘s’investisse’. ", "s’investit", "s’investira", "s’investissait", "s’investisse"),
+            item("C1", "Je ne saurais trop ___ l’importance de cette mesure.", 1, "The formal expression is ‘je ne saurais trop souligner’. ", "soulignant", "souligner", "souligné", "à souligner"),
+        ),
+        "Thai" to listOf(
+            item("A1", "พวกเขา ___ กาแฟทุกเช้า", 1, "‘ดื่มกาแฟ’ หมายถึง drink coffee", "กิน", "ดื่ม", "ไป", "อ่าน"),
+            item("A1", "พรุ่งนี้ฉัน ___ ไปทำงาน", 0, "ใช้ ‘จะ’ เพื่อบอกเหตุการณ์ในอนาคต", "จะ", "เคย", "กำลัง", "แล้ว"),
+            item("A1", "หนังสืออยู่ ___ โต๊ะ", 2, "‘บนโต๊ะ’ หมายถึง on the table", "ใต้", "กับ", "บน", "จาก"),
+            item("A1", "เขาไม่ ___ อาหารเผ็ด", 3, "‘ไม่ชอบ’ หมายถึง does not like", "เป็น", "มี", "อยู่", "ชอบ"),
+            item("A2", "ฉัน ___ เขาตั้งแต่ปีที่แล้ว", 2, "‘รู้จัก’ ใช้บอกว่ารู้จักบุคคล", "รู้", "เรียน", "รู้จัก", "เห็น"),
+            item("A2", "ระหว่างที่แม่ทำอาหาร ฉัน ___ โต๊ะ", 0, "‘จัดโต๊ะ’ หมายถึง set the table", "จัด", "ปิด", "เปิด", "ล้าง"),
+            item("A2", "ร้านนี้ ___ วันอาทิตย์", 1, "‘ปิดวันอาทิตย์’ หมายถึง closed on Sundays", "เปิด", "ปิด", "เดิน", "อยู่"),
+            item("A2", "ถ้าเราขึ้นรถไฟเร็ว เรา ___ ถึงก่อนเที่ยง", 3, "ใช้ ‘จะ’ เพื่อบอกผลที่คาดในอนาคต", "เคย", "กำลัง", "แล้ว", "จะ"),
+            item("B1", "เขาบอกว่าเขา ___ งานเสร็จแล้ว", 1, "‘ทำงานเสร็จแล้ว’ หมายถึง has finished the work", "กำลังทำ", "ทำ", "จะทำ", "ทำต่อ"),
+            item("B1", "แม้ว่าอากาศจะร้อน เราก็ ___ เดินต่อ", 3, "‘ยังคง’ ใช้บอกว่ายังคงทำสิ่งเดิม", "เพิ่ง", "เกือบ", "คงจะ", "ยังคง"),
+            item("B1", "ถ้ารู้ก่อน ฉัน ___ ช่วยคุณ", 0, "‘คงจะช่วย’ บอกผลที่น่าจะเกิดในเงื่อนไขสมมติ", "คงจะ", "กำลัง", "เคย", "เพิ่ง"),
+            item("B1", "ฉันกำลังคิด ___ ย้ายบ้าน", 2, "‘คิดจะย้าย’ หมายถึง thinking of moving", "ที่", "จาก", "จะ", "กับ"),
+            item("B2", "ยิ่งอ่านมาก ___ เข้าใจมากขึ้น", 1, "โครงสร้าง ‘ยิ่ง…ก็ยิ่ง…’ แสดงความสัมพันธ์ที่เพิ่มขึ้น", "แต่", "ก็", "เพราะ", "หรือ"),
+            item("B2", "งานนี้ควรทำให้ ___ ก่อนวันศุกร์", 0, "‘ทำให้เสร็จ’ หมายถึง finish it", "เสร็จ", "เปิด", "กลับ", "หาย"),
+            item("B2", "แม้ว่าเขาจะมีประสบการณ์มาก ___ เขาก็ยังเรียนรู้ต่อ", 3, "‘แต่’ เชื่อมใจความที่ขัดแย้งกับ ‘แม้ว่า’", "หรือ", "เพราะ", "และ", "แต่"),
+            item("B2", "เธออธิบายเรื่องนี้อย่าง ___ จนทุกคนเข้าใจ", 2, "‘ชัดเจน’ หมายถึง clear", "รวดเร็ว", "เงียบ", "ชัดเจน", "กว้าง"),
+            item("C1", "ข้อเสนอได้รับการ ___ หลังจากหารืออย่างรอบคอบ", 1, "‘เห็นชอบ’ หมายถึง approved", "ปฏิเสธ", "เห็นชอบ", "เปลี่ยนแปลง", "หยุด"),
+            item("C1", "ไม่ว่าผลจะเป็นอย่างไร เรา ___ ดำเนินงานต่อ", 3, "‘ยังคงดำเนินงานต่อ’ หมายถึง continue regardless", "เพิ่ง", "เกือบ", "อาจจะ", "ยังคง"),
+            item("C1", "การตัดสินใจนี้มีผล ___ ต่อการวางแผนระยะยาว", 0, "‘อย่างมีนัยสำคัญ’ เป็นสำนวนทางการหมายถึง significantly", "อย่างมีนัยสำคัญ", "ในทันที", "โดยบังเอิญ", "อย่างใกล้ชิด"),
+            item("C1", "ยิ่งหลักฐานชัดเจนเท่าไร ข้อสรุปก็ยิ่ง ___", 2, "‘สมเหตุสมผล’ หมายถึง reasonable", "รวดเร็ว", "เงียบ", "สมเหตุสมผล", "กว้างขวาง"),
+        ),
+    )
 
-    fun result(language: String, selectedAnswers: List<Int>): LanguagePlacementResult {
-        val questions = questions(language)
+    fun questions(language: String, bankVersion: Int = 0): List<LanguagePlacementQuestion> {
+        val source = if (bankVersion % 2 == 1) alternateBanks else banks
+        return source[language] ?: source.getValue("English")
+    }
+
+    fun result(language: String, selectedAnswers: List<Int>, bankVersion: Int = 0): LanguagePlacementResult {
+        val questions = questions(language, bankVersion)
         val scores = bands.map { band ->
             LanguagePlacementBandScore(band, questions.zip(selectedAnswers).count { (question, selected) -> question.band == band && question.answerIndex == selected })
         }

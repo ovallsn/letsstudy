@@ -117,6 +117,24 @@ interface StudyDao {
     @Query("SELECT * FROM study_activity ORDER BY startedAt DESC")
     suspend fun getAllActivity(): List<StudyActivityEntity>
 
+    @Query("SELECT * FROM language_placement_attempts WHERE deletedAt = 0 ORDER BY completedAt DESC")
+    fun observePlacementAttempts(): Flow<List<StudyPlacementAttemptEntity>>
+
+    @Query("SELECT * FROM language_placement_attempts ORDER BY completedAt DESC")
+    suspend fun getAllPlacementAttempts(): List<StudyPlacementAttemptEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPlacementAttempt(attempt: StudyPlacementAttemptEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRemotePlacementAttempt(attempt: StudyPlacementAttemptEntity)
+
+    @Query("UPDATE language_placement_attempts SET deletedAt = :deletedAt WHERE deletedAt = 0")
+    suspend fun markPlacementAttemptsDeleted(deletedAt: Long)
+
+    @Query("DELETE FROM language_placement_attempts")
+    suspend fun clearPlacementAttempts()
+
     @Query("SELECT * FROM study_deletions ORDER BY deletedAt ASC")
     fun observeDeletionTombstones(): Flow<List<StudyDeletionEntity>>
 
@@ -180,6 +198,7 @@ interface StudyDao {
     @Transaction
     suspend fun clearStudyData() {
         markAllSessionsDeleted(System.currentTimeMillis())
+        markPlacementAttemptsDeleted(System.currentTimeMillis())
         clearMessages()
         clearActivity()
         clearQuestions()
@@ -190,6 +209,7 @@ interface StudyDao {
     suspend fun clearAllStudyData() {
         clearMessages()
         clearActivity()
+        clearPlacementAttempts()
         clearQuestions()
         clearSessions()
         clearDeletionTombstones()

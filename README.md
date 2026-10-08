@@ -9,26 +9,27 @@ Let’sStudy is a native Android study app for preparing with purpose. It turns 
 ## A workspace built for learning
 
 - **Interview preparation:** public job URLs or pasted descriptions, domain-specific questions, mock interview rounds, typed answers and optional Android dictation.
-- **Learn beyond interviews:** build a path for any topic or language with a goal, starting level, pace, target date and ordered modules. An original, offline 20-question check estimates a written-language range for English, Spanish, French or Thai, then pre-fills a tailored study path. Borderline answers are shown as a range and a suggested starting point. Its result is approximate, not a certified or official CEFR/EF SET score.
+- **Learn beyond interviews:** build a path for any topic or language with a goal, starting level, pace, target date and ordered modules. An original 20-question check estimates a written-language range for English, Spanish, French or Thai, then pre-fills a tailored study path. The estimate considers the pattern across difficulty bands, not just the total correct; it offers a flexible starting point rather than a pass/fail label. Results and answer review are saved. The check is not a certified or official CEFR/EF SET score.
 - **Bring study material:** import text PDFs, PPTX presentations or TXT files and preview their extracted text. Limits: 10 MB, 100 pages/slides and the first 18,000 characters. Scanned PDFs can use on-device OCR for up to 30 Latin-script pages; Thai-script scans are not supported yet.
 - **Nine practice formats:** multiple choice, true/false, open answers, fill-in-the-blank, flashcards, scenarios, interview answers, code/commands and vocabulary. Code is studied as text and never executed.
 - **Understand the answer:** immediate explanations, reference answers, saved deeper lessons and a contextual AI tutor. Objective answers and recall ratings are scored locally; written feedback is an explicit AI request.
 - **Stay organised:** searchable studies/jobs, history, saved questions, confirmed deletion, topic strengths, active paths, streaks and actual foreground study time. Answered questions enter an offline spaced-review queue with longer intervals after successful recall.
+- **Keep placement results:** completed language checks save the score, estimated range and selected answers. The latest result and earlier attempts are available from Progress; signed-in learners can sync them with their private study data.
 - **Study together if you choose:** an optional weekly community board publishes only a chosen community username and a capped, self-reported score after separate consent. Names follow a restricted format and a basic inappropriate/reserved-name filter. Email, profile display name, study topics and answers stay private.
 - **Sync when you choose:** study as a guest, or create an optional account to sync your private study library across Android devices.
-- **Make it personal:** choose a display name and unique username for your private learner profile, set a default study language, and use optional daily reminders and weekly summaries.
+- **Make it personal:** choose a display name, a unique username and one of six original illustrated avatars. Username rules block configured offensive terms and reserved names. Your avatar stays on this phone as a guest or syncs privately with your account; it is never used on the community board. Set a default study language and optional daily reminders or weekly summaries.
 
 The interface is built for portrait Android use with native Compose controls, shared visual components and readable scrolling screens.
 
 ## The learner experience
 
-1. **Start with a job listing.** Paste a public HTTPS URL or the listing text, then choose English, Spanish, Thai, or another question language. For a language-learning path, take the short original placement check first or set a starting level yourself.
+1. **Start with a job listing or a subject.** Paste a public HTTPS URL or listing text, choose a question language, or build a path around a subject, language, or imported material. A learner can take the original language check to choose a starting point.
 2. **Practise likely interview questions.** The first round has 15 multiple-choice questions, each with four plausible options, one marked answer, and a short explanation. Questions are shaped around the advertised duties and relevant industry context; unsupported company-specific details are identified as inferences.
 3. **Learn as you go.** After choosing an answer, the app explains the idea and lets the learner move directly to the next question. The answer and review state are saved on the device and sync when the learner has opted in.
 4. **Go deeper when needed.** “Learn this topic” requests an optional mini-lesson with a definition, how it works, a practical example, key terms, and a takeaway. The lesson is saved with its question and can be reopened offline. The first lesson request uses one additional shared Gemini request; reopening it does not.
 5. **Keep practising.** Each “Add 15 questions” action asks for a fresh round based on the role and earlier questions; repeated questions are rejected. Sessions, choices, written-answer feedback, and saved questions remain available in the study library.
 6. **Return at the right time.** Correct recall schedules a longer review interval; an incorrect or difficult answer returns sooner. Review scheduling is local, works offline, and does not call AI.
-7. **Use the level estimate as a guide.** The placement check has four original questions at each level from A1 through C1. It samples written vocabulary, grammar and reading in English, Spanish, French or Thai. Borderline results show a range and a practical starting point. Speaking, listening and writing are not measured, so treat the estimate as a study guide rather than an exam credential.
+7. **Build language skills over time.** The original check estimates a starting level from written vocabulary, grammar and reading in English, Spanish, French or Thai. It saves the result and answer review, then shapes a language path with short theory lessons, examples and common mistakes. Fresh progress checks can move the active level up one step at a time; a lower single result never moves it down. Speaking, listening and writing are not measured, so the estimate is study guidance, not an exam credential.
 
 ## App preview
 
@@ -48,7 +49,9 @@ Screenshots show the current native Android interface with fictional study conte
 
 ### Language placement check
 
-The level check uses original questions, works offline, and introduces the language path with a starting estimate. It measures written grammar, vocabulary and reading only.
+The check uses two original question forms per language. Results and answer review are saved in Progress. Language paths include an explanation, example and common mistake for each module, and learners can take a fresh progress check from that path. The path advances one level at a time based on the check; each new level creates a new path while keeping earlier study sessions intact.
+
+Learners can keep an illustrated profile avatar or choose a personal photo. Photos are resized and saved in the app's private storage on that phone; they are not uploaded or included in account sync. Illustrated avatars remain available for cross-device sync without enabling paid Firebase Storage.
 
 The placement bank is authored for Let’sStudy; it does not reproduce edX, EF SET or other exam questions.
 
@@ -86,7 +89,7 @@ A topic/document plan makes one request. An online round makes one for 15 questi
 
 - Kotlin and Jetpack Compose for the Android app and interface.
 - Room for local sessions, answers, question review, and cached concept lessons.
-- A locally authored 20-question language placement bank in English, Spanish, French and Thai, plus a Room-backed spaced-review schedule.
+- Two locally authored 20-question language-check forms in English, Spanish, French and Thai, saved progress history, stepwise level advancement, and Room-backed spaced review.
 - Firebase Authentication for optional email accounts and Cloud Firestore for UID-scoped study synchronization.
 - An opt-in Firestore community board that exposes only a selected nickname and weekly points.
 - Bundled Google ML Kit Text Recognition for on-device Latin-script OCR of scanned PDF pages.

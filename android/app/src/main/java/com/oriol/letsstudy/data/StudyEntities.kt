@@ -82,6 +82,25 @@ data class StudyActivityEntity(
     val durationSeconds: Long,
 )
 
+@Entity(tableName = "language_placement_attempts", indices = [Index("completedAt")])
+data class StudyPlacementAttemptEntity(
+    @PrimaryKey val id: String,
+    val language: String,
+    val level: String,
+    val estimatedRange: String,
+    val startingLevel: String,
+    val correct: Int,
+    val total: Int,
+    val nextFocus: String,
+    val answersCsv: String,
+    val completedAt: Long,
+    @ColumnInfo(defaultValue = "0") val deletedAt: Long = 0,
+    @ColumnInfo(defaultValue = "'PLACEMENT'") val attemptType: String = "PLACEMENT",
+    @ColumnInfo(defaultValue = "0") val bankVersion: Int = 0,
+    @ColumnInfo(defaultValue = "''") val previousLevel: String = "",
+    @ColumnInfo(defaultValue = "''") val progressLevel: String = "",
+)
+
 @Entity(tableName = "study_deletions")
 data class StudyDeletionEntity(
     @PrimaryKey val sessionId: String,

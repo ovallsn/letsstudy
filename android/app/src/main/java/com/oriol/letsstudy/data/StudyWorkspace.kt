@@ -13,7 +13,14 @@ enum class PracticeFormat(val label: String) {
     FILL_BLANK("Fill in the blank"), FLASHCARD("Flashcards"), SCENARIO("Practical scenario"),
     INTERVIEW("Interview answer"), CODE("Code & commands"), VOCABULARY("Vocabulary")
 }
-data class LearningModule(val id: String, val title: String, val outcome: String)
+data class LearningModule(
+    val id: String,
+    val title: String,
+    val outcome: String,
+    val theory: String = "",
+    val example: String = "",
+    val commonMistake: String = "",
+)
 data class StudySetup(
     val topic: String, val goal: String, val level: String, val intensity: String,
     val target: String, val language: String, val mode: String, val kind: String = "TOPIC",
@@ -23,7 +30,16 @@ data class LearnerSettings(
     val name: String = "", val language: String = "English", val mode: String = "ONLINE",
     val dailyReminder: Boolean = false, val weeklySummary: Boolean = false,
     val reminderHour: Int = 19, val reminderMinute: Int = 0, val onlineDisclosureAccepted: Boolean = false,
+    val avatarId: String = LearnerAvatarIds.DEFAULT,
+    val photoPath: String = "",
 )
+
+object LearnerAvatarIds {
+    const val DEFAULT = "sprout"
+    val all = setOf(DEFAULT, "book", "spark", "paw", "globe", "star")
+
+    fun safe(value: String?) = value?.takeIf(all::contains) ?: DEFAULT
+}
 
 fun StudySessionEntity.modules(): List<LearningModule> = runCatching {
     (Gson().fromJson<List<LearningModule>>(modulesJson, object : TypeToken<List<LearningModule>>() {}.type) ?: emptyList())
@@ -47,10 +63,17 @@ class StudyWorkspace(
     suspend fun createPath(setup: StudySetup): StudySessionEntity {
         require(setup.topic.trim().length in 3..500) { "Enter a topic between 3 and 500 characters." }
         val data = gson.toJson(setup.copy(material = setup.material.take(18_000)))
-        val result = parse(generate("$safety\n${languageInstruction(setup.language)}\nCreate a concise learning plan. If level is Assess me, begin with a diagnostic module. Return {\"title\":string,\"summary\":string,\"modules\":[{\"title\":string,\"outcome\":string}]}, with 3 to 6 ordered modules. DATA: $data", setup.mode))
+        val result = parse(generate("$safety\n${languageInstruction(setup.language)}\nCreate a concise learning plan at the learner's stated level. If this is language study, teach the actual vocabulary, grammar, reading or communication skills associated with that level and build from foundations to gradually harder material. Every module must include a short accurate theory lesson (2–4 sentences), one concrete worked example, and one common mistake to avoid. Keep the theory readable and actionable. If material is supplied, ground lessons in it and distinguish facts from assumptions. Return {\"title\":string,\"summary\":string,\"modules\":[{\"title\":string,\"outcome\":string,\"theory\":string,\"example\":string,\"commonMistake\":string}]}, with 3 to 6 ordered modules. DATA: $data", setup.mode))
         val modules = result.getAsJsonArray("modules")?.mapIndexed { index, element ->
             val module = element.asJsonObject
-            LearningModule("module-$index", module.required("title", 180), module.required("outcome", 600))
+            LearningModule(
+                id = "module-$index",
+                title = module.required("title", 180),
+                outcome = module.required("outcome", 600),
+                theory = module.required("theory", 2400),
+                example = module.required("example", 1600),
+                commonMistake = module.optional("commonMistake", 1000),
+            )
         } ?: invalid()
         if (modules.size !in 3..6) invalid()
         val session = StudySessionEntity(
@@ -163,6 +186,8 @@ class StudyWorkspace(
 
     private fun JsonObject.required(key: String, max: Int): String = get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
         ?.trim()?.takeIf { it.isNotBlank() && it.length <= max } ?: invalid()
+    private fun JsonObject.optional(key: String, max: Int): String = get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+        ?.trim()?.takeIf { it.length <= max }.orEmpty()
     private fun JsonObject.strings(key: String): List<String> = getAsJsonArray(key)?.map { it.asString.trim() }?.takeIf { it.size <= 30 && it.all { value -> value.isNotBlank() && value.length <= 2000 } } ?: emptyList()
     private fun invalid(): Nothing = throw InvalidStudyOutputException("The model returned incomplete study content. Try again.")
     private fun normalize(value: String) = java.text.Normalizer.normalize(value.trim().lowercase(java.util.Locale.ROOT), java.text.Normalizer.Form.NFKC).replace(Regex("\\s+"), " ")

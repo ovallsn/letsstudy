@@ -33,6 +33,8 @@ data class StudyAccountState(
     val email: String? = null,
     val displayName: String? = null,
     val username: String? = null,
+    val avatarId: String = LearnerAvatarIds.DEFAULT,
+    val avatarLoaded: Boolean = false,
     val profileComplete: Boolean = false,
     val isProfileLoading: Boolean = false,
     val status: CloudSyncStatus = CloudSyncStatus.SIGNED_OUT,
@@ -69,6 +71,7 @@ class StudyAccountSync(private val dao: StudyDao) {
         scope.launch { dao.observeAllQuestions().collect { requestReconcile() } }
         scope.launch { dao.observeMessages().collect { requestReconcile() } }
         scope.launch { dao.observeActivity().collect { requestReconcile() } }
+        scope.launch { dao.observePlacementAttempts().collect { requestReconcile() } }
         scope.launch { dao.observeDeletionTombstones().collect { requestReconcile() } }
         auth.addAuthStateListener(authListener)
     }
@@ -93,6 +96,16 @@ class StudyAccountSync(private val dao: StudyDao) {
         val user = auth.currentUser ?: throw IllegalStateException("Sign in before editing your profile.")
         saveProfile(user, validateDisplayName(displayName), normalizeUsername(username))
         "Your learner profile is updated."
+    }
+
+    fun updateAvatar(avatarId: String) = runAccountAction {
+        val user = auth.currentUser ?: throw IllegalStateException("Sign in before syncing your profile picture.")
+        val safeAvatarId = LearnerAvatarIds.safe(avatarId)
+        _state.update { it.copy(avatarId = safeAvatarId, avatarLoaded = true) }
+        val record = mapOf("type" to "profile_avatar", "avatarId" to safeAvatarId, "updatedAt" to FieldValue.serverTimestamp())
+        firestore.collection("users").document(user.uid).collection("studyData").document("profile_avatar").set(record).await()
+        if (activeUid == user.uid) remoteRecords = remoteRecords + ("profile_avatar" to record)
+        "Profile picture updated."
     }
 
     fun signIn(email: String, password: String) = runAccountAction {
@@ -211,6 +224,13 @@ class StudyAccountSync(private val dao: StudyDao) {
                     remoteRecords = snapshot.documents.mapNotNull { document ->
                         document.data?.let { document.id to it }
                     }.toMap()
+                    val remoteAvatar = LearnerAvatarIds.safe(remoteRecords["profile_avatar"]?.get("avatarId") as? String)
+                    _state.update {
+                        it.copy(
+                            avatarId = remoteAvatar,
+                            avatarLoaded = !snapshot.metadata.isFromCache,
+                        )
+                    }
                     if (!snapshot.metadata.isFromCache) {
                         remoteReady = true
                         serverReady.complete(Unit)
@@ -449,6 +469,23 @@ class StudyAccountSync(private val dao: StudyDao) {
         remoteActivity.values.filter { it.id !in localActivity }.forEach { dao.putRemoteActivity(it) }
         localActivity.values.filter { it.id !in remoteActivity }.forEach { writes[activityKey(it.id)] = it.toCloudRecord() }
 
+        val localPlacementAttempts = dao.getAllPlacementAttempts().associateBy { it.id }
+        val remotePlacementAttempts = remote.values.mapNotNull(::decodePlacementAttempt).associateBy { it.id }
+        remotePlacementAttempts.values.forEach { cloud ->
+            val local = localPlacementAttempts[cloud.id]
+            if (local == null) {
+                dao.upsertRemotePlacementAttempt(cloud)
+            } else when {
+                cloud.deletedAt > local.deletedAt -> dao.upsertRemotePlacementAttempt(cloud)
+                local.deletedAt > cloud.deletedAt -> writes[placementKey(local.id)] = local.toCloudRecord()
+                cloud.deletedAt == 0L && compareVersions(local.completedAt, local.toCloudRecord(), cloud.completedAt, cloud.toCloudRecord()) < 0 -> dao.upsertRemotePlacementAttempt(cloud)
+                cloud.deletedAt == 0L && compareVersions(local.completedAt, local.toCloudRecord(), cloud.completedAt, cloud.toCloudRecord()) > 0 -> writes[placementKey(local.id)] = local.toCloudRecord()
+            }
+        }
+        localPlacementAttempts.values.filter { it.id !in remotePlacementAttempts }.forEach { local ->
+            writes[placementKey(local.id)] = local.toCloudRecord()
+        }
+
         (writes.keys + deletes).distinct().chunked(FIRESTORE_BATCH_SIZE).forEach { documentIds ->
             val batch = firestore.batch()
             documentIds.forEach { documentId ->
@@ -529,6 +566,7 @@ class StudyAccountSync(private val dao: StudyDao) {
     private fun questionKey(id: String) = "question_$id"
     private fun messageKey(id: String) = "message_$id"
     private fun activityKey(id: String) = "activity_$id"
+    private fun placementKey(id: String) = "placement_$id"
 
     private fun compareVersions(localTime: Long, local: Map<String, Any?>, cloudTime: Long, cloud: Map<String, Any?>): Int {
         val timeOrder = localTime.compareTo(cloudTime)
@@ -569,6 +607,19 @@ class StudyAccountSync(private val dao: StudyDao) {
         "type" to "activity", "id" to id, "sessionId" to sessionId,
         "startedAt" to startedAt, "durationSeconds" to durationSeconds,
     )
+
+    private fun StudyPlacementAttemptEntity.toCloudRecord(): Map<String, Any?> = if (deletedAt > 0) {
+        mapOf("type" to "placement_deletion", "id" to id, "deletedAt" to deletedAt)
+    } else {
+        mapOf(
+            "type" to "placement", "id" to id, "language" to language, "level" to level,
+            "estimatedRange" to estimatedRange, "startingLevel" to startingLevel,
+            "correct" to correct, "total" to total, "nextFocus" to nextFocus,
+            "answersCsv" to answersCsv, "completedAt" to completedAt,
+            "attemptType" to attemptType, "bankVersion" to bankVersion,
+            "previousLevel" to previousLevel, "progressLevel" to progressLevel,
+        )
+    }
 
     private fun StudyDeletionEntity.toCloudRecord() = mapOf(
         "type" to "deletion", "sessionId" to sessionId, "deletedAt" to deletedAt,
@@ -616,6 +667,23 @@ class StudyAccountSync(private val dao: StudyDao) {
         StudyActivityEntity(data.string("id"), data.string("sessionId"), data.long("startedAt"), data.long("durationSeconds"))
             .takeIf { it.id.isNotBlank() && it.sessionId.isNotBlank() }
     }.getOrNull()
+
+    private fun decodePlacementAttempt(data: Map<String, Any?>): StudyPlacementAttemptEntity? = when (data["type"]) {
+        "placement" -> runCatching {
+            StudyPlacementAttemptEntity(
+                id = data.string("id"), language = data.string("language"), level = data.string("level"),
+                estimatedRange = data.string("estimatedRange"), startingLevel = data.string("startingLevel"),
+                correct = data.int("correct"), total = data.int("total"), nextFocus = data.string("nextFocus"),
+                answersCsv = data.string("answersCsv"), completedAt = data.long("completedAt"),
+                attemptType = data.string("attemptType", "PLACEMENT"), bankVersion = data.int("bankVersion"),
+                previousLevel = data.string("previousLevel"), progressLevel = data.string("progressLevel", data.string("startingLevel")),
+            ).takeIf { it.id.isNotBlank() && it.language.isNotBlank() && it.total > 0 && it.completedAt > 0 }
+        }.getOrNull()
+        "placement_deletion" -> data.string("id").takeIf(String::isNotBlank)?.let { id ->
+            StudyPlacementAttemptEntity(id, "", "", "", "", 0, 0, "", "", 0, data.long("deletedAt"))
+        }
+        else -> null
+    }
 
     private fun decodeDeletion(data: Map<String, Any?>): StudyDeletionEntity? = if (data["type"] != "deletion") null else runCatching {
         StudyDeletionEntity(data.string("sessionId"), data.long("deletedAt")).takeIf { it.sessionId.isNotBlank() }

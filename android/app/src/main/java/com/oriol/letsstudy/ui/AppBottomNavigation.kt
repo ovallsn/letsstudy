@@ -39,6 +39,8 @@ enum class AppDestination {
     TOPIC,
     MATERIAL,
     LANGUAGE_CHECK,
+    PLACEMENT_RESULT,
+    NOTIFICATIONS,
     REVIEW_DUE,
     LEADERBOARD,
 }

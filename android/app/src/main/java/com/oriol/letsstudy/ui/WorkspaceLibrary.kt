@@ -5,6 +5,7 @@ import android.app.TimePickerDialog
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -23,6 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.oriol.letsstudy.data.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -107,7 +111,14 @@ fun WorkspaceReviewDue(state: LetsStudyUiState, onMenu: () -> Unit, onOpen: (Stu
 }
 
 @Composable
-fun WorkspaceProgress(state: LetsStudyUiState, onMenu: () -> Unit, onOpenQuestion: (StudyQuestionEntity) -> Unit, onReviewDue: () -> Unit, onLeaderboard: () -> Unit) {
+fun WorkspaceProgress(
+    state: LetsStudyUiState,
+    onMenu: () -> Unit,
+    onOpenQuestion: (StudyQuestionEntity) -> Unit,
+    onOpenPlacement: (String) -> Unit,
+    onReviewDue: () -> Unit,
+    onLeaderboard: () -> Unit,
+) {
     val answered = state.allQuestions.filter { it.isAnswered() }
     val scored = answered.filter { it.score >= 0 || it.selectedOptionIndex >= 0 && it.correctOptionIndex >= 0 }
     val correct = scored.count { if (it.score >= 0) it.score >= 80 else it.selectedOptionIndex == it.correctOptionIndex }
@@ -117,9 +128,34 @@ fun WorkspaceProgress(state: LetsStudyUiState, onMenu: () -> Unit, onOpenQuestio
     val activePaths = state.sessions.count { session -> state.allQuestions.none { it.sessionId == session.id } || state.allQuestions.any { it.sessionId == session.id && !it.isAnswered() } }
     WorkspacePage("Your progress", onMenu) {
         item { WorkspaceTitle("Little steps.\nReal progress.", "Every bit of practice counts. Here's yours.") }
+        state.placementAttempts.firstOrNull()?.let { latest ->
+            item {
+                WorkspaceCard(color = LetsStudyColors.Mint) {
+                    Text("LATEST LANGUAGE CHECK", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                    Text(latest.estimatedRange, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("${latest.correct} of ${latest.total} correct in ${latest.language}", style = MaterialTheme.typography.bodyLarge)
+                    Text("${latest.startingLevel} starting point · ${epochDay(latest.completedAt).format(DateTimeFormatter.ofPattern("MMM d, yyyy", java.util.Locale.ENGLISH))}", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                    OutlinedButton(onClick = { onOpenPlacement(latest.id) }, modifier = Modifier.fillMaxWidth()) { Text("View result and answers") }
+                }
+            }
+            if (state.placementAttempts.size > 1) {
+                item { Text("Previous language checks", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                items(state.placementAttempts.drop(1), key = { it.id }) { attempt ->
+                    WorkspaceAction(
+                        "${attempt.language} · ${attempt.estimatedRange}",
+                        "${attempt.correct}/${attempt.total} correct · ${epochDay(attempt.completedAt).format(DateTimeFormatter.ofPattern("MMM d, yyyy", java.util.Locale.ENGLISH))}",
+                        Icons.Outlined.Translate,
+                    ) { onOpenPlacement(attempt.id) }
+                }
+            }
+        }
         item {
             WorkspaceCard(color = LetsStudyColors.Mint) {
-                Text("${studyStreak(state.allQuestions, state.activity)} day study streak", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                val streak = studyStreak(state.allQuestions, state.activity)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Outlined.LocalFireDepartment, null, tint = LetsStudyColors.Clay)
+                    Text(if (streak == 0) "Start a study streak" else "$streak-day study streak", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                }
                 Text("${state.activity.sumOf { it.durationSeconds } / 60} minutes of focused study", color = LetsStudyColors.Muted)
             }
         }
@@ -174,6 +210,64 @@ fun WorkspaceProgress(state: LetsStudyUiState, onMenu: () -> Unit, onOpenQuestio
 }
 
 @Composable
+fun WorkspaceNotifications(state: LetsStudyUiState, onMenu: () -> Unit, onReviewDue: () -> Unit, onManageReminders: () -> Unit) {
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var notificationsEnabled by remember(context) {
+        mutableStateOf(androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled())
+    }
+    DisposableEffect(lifecycle, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    val dueCount = state.allQuestions.count { it.isDueForReview() }
+    val hasReminders = state.settings.dailyReminder || state.settings.weeklySummary
+
+    WorkspacePage("Notifications", onMenu) {
+        item { WorkspaceTitle("A little nudge,\nwhen it helps.", "Choose reminders for your study routine and pick up due reviews here.") }
+        item {
+            WorkspaceCard(color = if (notificationsEnabled) LetsStudyColors.Mint else LetsStudyColors.ClayWash) {
+                Text("STUDY REMINDERS", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                Text(
+                    when {
+                        !notificationsEnabled -> "Notifications are turned off on this phone."
+                        hasReminders -> "Your study reminders are ready."
+                        else -> "No reminders are scheduled yet."
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (state.settings.dailyReminder) Text("Daily practice · %02d:%02d".format(state.settings.reminderHour, state.settings.reminderMinute), color = LetsStudyColors.Muted)
+                if (state.settings.weeklySummary) Text("Weekly learning summary", color = LetsStudyColors.Muted)
+                OutlinedButton(onClick = onManageReminders, modifier = Modifier.fillMaxWidth()) { Text("Manage reminder schedule") }
+                if (!notificationsEnabled) {
+                    Button(
+                        onClick = {
+                            context.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Open Android notification settings") }
+                }
+            }
+        }
+        if (dueCount > 0) {
+            item { Text("Ready when you are", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            item { WorkspaceAction("$dueCount questions ready to review", "Revisit them while they're fresh", Icons.Outlined.Replay, onReviewDue) }
+        } else {
+            item { WorkspaceEmpty("Nothing is waiting", "When a saved question is due for review, you'll find it here.") }
+        }
+    }
+}
+
+@Composable
 fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, onMenu: () -> Unit) {
     val context = LocalContext.current
     val settings = state.settings
@@ -190,6 +284,9 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
         if (granted) pendingReminder?.let { index -> viewModel.saveSettings(if (index == 0) latest.copy(dailyReminder = true) else latest.copy(weeklySummary = true)) }
         pendingReminder = null
     }
+    val profilePhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let(viewModel::saveProfilePhoto)
+    }
     WorkspacePage("Settings", onMenu) {
         item { WorkspaceTitle("Your space.\nYour pace.", "A few preferences to make studying feel like you.") }
         item { AccountSyncPanel(state.account, settings.name, viewModel) }
@@ -201,6 +298,33 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
                 } else {
                     Text("Your account display name and username are managed in Account & sync above.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 }
+                if (settings.photoPath.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        WorkspaceAvatar(settings.avatarId, 52.dp, photoPath = settings.photoPath)
+                        Column(Modifier.weight(1f)) {
+                            Text("Your photo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("Stored privately on this phone", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                        }
+                        TextButton({ viewModel.saveSettings(settings.copy(photoPath = "")) }) { Text("Remove") }
+                    }
+                }
+                OutlinedButton(
+                    onClick = { profilePhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(if (settings.photoPath.isBlank()) "Choose a profile photo" else "Change profile photo") }
+                if (state.errorMessage != null) Text(state.errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                StudyAvatarPicker(
+                    selectedAvatarId = if (state.account.email != null && state.account.avatarLoaded) state.account.avatarId else settings.avatarId,
+                    onSelected = { avatarId ->
+                        viewModel.saveSettings(settings.copy(avatarId = avatarId, photoPath = ""))
+                        if (state.account.email != null) viewModel.updateAccountAvatar(avatarId)
+                    },
+                )
+                Text(
+                    "Photos stay private on this phone. Illustrated avatars sync with your account.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = LetsStudyColors.Muted,
+                )
                 WorkspaceField(settings.language, { viewModel.saveSettings(settings.copy(language = it)) }, "Default study language", maxLength = 80)
                 WorkspaceSelect("Preferred study mode", if (settings.mode == "ONLINE") "Fast online" else "On-device", listOf("Fast online", "On-device")) { viewModel.saveSettings(settings.copy(mode = if (it == "Fast online") "ONLINE" else "OFFLINE")) }
                 Text("Fast online is quicker. On-device study may take longer and requires a one-time model download.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
@@ -396,11 +520,11 @@ private fun LearnerIdentityFields(
 ) {
     WorkspaceField(displayName, onDisplayNameChange, "Display name", maxLength = 80, enabled = enabled)
     WorkspaceField(username, onUsernameChange, "Username", maxLength = 20, enabled = enabled)
-    val usernameValid = UsernamePolicy.isAllowed(username)
-    if (username.isNotBlank() && !usernameValid) {
-        Text("Use 3–20 letters, numbers or underscores. Offensive words and reserved names are not accepted.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    val usernameError = if (username.isBlank()) null else runCatching { UsernamePolicy.normalize(username) }.exceptionOrNull()?.message
+    if (usernameError != null) {
+        Text(usernameError, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     } else {
-        Text("Use 3–20 letters, numbers or underscores. Offensive words and reserved names are not accepted. Usernames are private unless you join the community board.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+        Text("Use 3–20 letters, numbers or single underscores between words. Offensive terms and reserved names are blocked. Usernames stay private unless you join the community board.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
     }
 }
 

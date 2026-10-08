@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [StudySessionEntity::class, StudyQuestionEntity::class, TutorMessageEntity::class, StudyActivityEntity::class, StudyDeletionEntity::class], version = 7, exportSchema = false)
+@Database(entities = [StudySessionEntity::class, StudyQuestionEntity::class, TutorMessageEntity::class, StudyActivityEntity::class, StudyPlacementAttemptEntity::class, StudyDeletionEntity::class], version = 9, exportSchema = false)
 abstract class StudyDatabase : RoomDatabase() {
     abstract fun studyDao(): StudyDao
 
@@ -69,12 +69,28 @@ abstract class StudyDatabase : RoomDatabase() {
             }
         }
 
+        private val migration7To8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS language_placement_attempts (id TEXT NOT NULL, language TEXT NOT NULL, level TEXT NOT NULL, estimatedRange TEXT NOT NULL, startingLevel TEXT NOT NULL, correct INTEGER NOT NULL, total INTEGER NOT NULL, nextFocus TEXT NOT NULL, answersCsv TEXT NOT NULL, completedAt INTEGER NOT NULL, deletedAt INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(id))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_language_placement_attempts_completedAt ON language_placement_attempts(completedAt)")
+            }
+        }
+
+        private val migration8To9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE language_placement_attempts ADD COLUMN attemptType TEXT NOT NULL DEFAULT 'PLACEMENT'")
+                db.execSQL("ALTER TABLE language_placement_attempts ADD COLUMN bankVersion INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE language_placement_attempts ADD COLUMN previousLevel TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE language_placement_attempts ADD COLUMN progressLevel TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun get(context: Context): StudyDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
                 StudyDatabase::class.java,
                 "roleready.db",
-            ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6, migration6To7).build().also { instance = it }
+            ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6, migration6To7, migration7To8, migration8To9).build().also { instance = it }
         }
     }
 }

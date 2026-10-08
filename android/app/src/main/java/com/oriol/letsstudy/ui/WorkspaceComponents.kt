@@ -1,5 +1,7 @@
 package com.oriol.letsstudy.ui
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,36 +11,72 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Eco
+import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.NotificationsNone
-import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.outlined.Pets
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oriol.letsstudy.data.*
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.Locale
 
 data class WorkspaceHeaderActions(
     val onSearch: () -> Unit = {},
     val onNotifications: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val learnerName: String = "",
+    val avatarId: String = LearnerAvatarIds.DEFAULT,
+    val photoPath: String = "",
     val hasReminder: Boolean = false,
 )
 
 val LocalWorkspaceHeaderActions = staticCompositionLocalOf { WorkspaceHeaderActions() }
+
+@Composable
+fun StudyStreakChip(days: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val label = when (days) {
+        0 -> "Start today"
+        1 -> "1 day streak"
+        else -> "$days day streak"
+    }
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = LetsStudyColors.ClayWash,
+        border = BorderStroke(1.dp, LetsStudyColors.Border),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(Icons.Outlined.LocalFireDepartment, null, tint = LetsStudyColors.Clay, modifier = Modifier.size(14.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Ink, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
 
 @Composable
 fun WorkspacePage(title: String, onMenu: () -> Unit, content: LazyListScope.() -> Unit) {
@@ -72,26 +110,81 @@ fun WorkspaceTopBar(title: String, onMenu: () -> Unit, trailing: @Composable (()
                     }
                 }
             }
-            val initials = learnerInitials(actions.learnerName)
-            HeaderActionButton(actions.onProfile, "Profile and settings") {
-                Surface(shape = CircleShape, color = LetsStudyColors.Card,
-                    border = BorderStroke(1.dp, LetsStudyColors.Border), modifier = Modifier.size(32.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (initials == null) Icon(Icons.Outlined.PersonOutline, contentDescription = null, tint = LetsStudyColors.Muted, modifier = Modifier.size(18.dp))
-                        else Text(initials, style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Ink, fontWeight = FontWeight.SemiBold)
-                    }
-                }
+            HeaderActionButton(actions.onProfile, actions.learnerName.takeIf(String::isNotBlank)?.let { "Profile for $it" } ?: "Profile and settings") {
+                WorkspaceAvatar(actions.avatarId, 32.dp, photoPath = actions.photoPath)
             }
         }
     }
 }
 
-private fun learnerInitials(name: String): String? {
-    val initials = name.trim().split(Regex("\\s+")).filter(String::isNotBlank).take(2).mapNotNull { word ->
-        val codePoint = word.codePointAt(0)
-        if (Character.isLetterOrDigit(codePoint)) String(Character.toChars(codePoint)).uppercase(Locale.ROOT) else null
-    }.joinToString("")
-    return initials.takeIf(String::isNotBlank)
+private data class StudyAvatarOption(
+    val id: String,
+    val label: String,
+    val icon: ImageVector,
+    val foreground: Color,
+    val background: Color,
+)
+
+private val studyAvatarOptions = listOf(
+    StudyAvatarOption("sprout", "Sprout", Icons.Outlined.Eco, LetsStudyColors.Primary, LetsStudyColors.Mint),
+    StudyAvatarOption("book", "Book", Icons.AutoMirrored.Outlined.MenuBook, LetsStudyColors.Clay, LetsStudyColors.Warm),
+    StudyAvatarOption("spark", "Spark", Icons.Outlined.Lightbulb, LetsStudyColors.DeepPrimary, LetsStudyColors.SoftBlue),
+    StudyAvatarOption("paw", "Paw print", Icons.Outlined.Pets, LetsStudyColors.DeepPrimary, LetsStudyColors.Mint),
+    StudyAvatarOption("globe", "Globe", Icons.Outlined.Public, LetsStudyColors.Clay, LetsStudyColors.ClayWash),
+    StudyAvatarOption("star", "Star", Icons.Outlined.StarOutline, LetsStudyColors.DeepPrimary, LetsStudyColors.Warm),
+)
+
+@Composable
+fun WorkspaceAvatar(avatarId: String, size: Dp, modifier: Modifier = Modifier, photoPath: String = "") {
+    val option = studyAvatarOptions.firstOrNull { it.id == avatarId } ?: studyAvatarOptions.first()
+    val bitmap = remember(photoPath) {
+        photoPath.takeIf(String::isNotBlank)?.let { path -> runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() }
+    }
+    Surface(
+        modifier = modifier.size(size),
+        shape = CircleShape,
+        color = option.background,
+        border = BorderStroke(1.dp, LetsStudyColors.Border),
+    ) {
+        if (bitmap != null) {
+            Image(bitmap, contentDescription = "Profile photo", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+        } else {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(option.icon, contentDescription = null, tint = option.foreground, modifier = Modifier.size(size * 0.54f))
+            }
+        }
+    }
+}
+
+@Composable
+fun StudyAvatarPicker(selectedAvatarId: String, onSelected: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Profile picture", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        studyAvatarOptions.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { option ->
+                    val selected = selectedAvatarId == option.id
+                    Surface(
+                        onClick = { onSelected(option.id) },
+                        modifier = Modifier.weight(1f).heightIn(min = 82.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (selected) LetsStudyColors.Mint else LetsStudyColors.Card,
+                        border = BorderStroke(1.dp, if (selected) LetsStudyColors.Primary else LetsStudyColors.Border),
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            WorkspaceAvatar(option.id, 40.dp)
+                            Text(option.label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                        }
+                    }
+                }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
 }
 
 @Composable

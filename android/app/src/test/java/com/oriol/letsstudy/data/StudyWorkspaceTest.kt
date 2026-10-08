@@ -52,7 +52,7 @@ class StudyWorkspaceTest {
 
     @Test fun topicPlanIsValidatedAndSavedWithModules() = runBlocking {
         val dao = StudyRepositoryTest.FakeStudyDao()
-        val plan = """{"title":"Systems foundations","summary":"Learn practical diagnostics","modules":[{"title":"DNS","outcome":"Resolve names"},{"title":"TLS","outcome":"Diagnose certificates"},{"title":"Linux","outcome":"Inspect evidence"}]}"""
+        val plan = """{"title":"Systems foundations","summary":"Learn practical diagnostics","modules":[{"title":"DNS","outcome":"Resolve names","theory":"DNS maps readable hostnames to network addresses so clients can find services.","example":"A lookup for example.org returns its address records.","commonMistake":"Changing a DNS record does not instantly update every cache."},{"title":"TLS","outcome":"Diagnose certificates","theory":"TLS protects data in transit and verifies a server with a certificate.","example":"A browser checks that the certificate matches the requested domain."},{"title":"Linux","outcome":"Inspect evidence","theory":"Linux exposes processes and network state through commands and virtual filesystems.","example":"Use ss -lntp to inspect listening TCP ports.","commonMistake":"A listening port does not prove that a remote firewall allows access."}]}"""
         var calls = 0
         val path = StudyWorkspace(dao) { prompt, _ ->
             calls++
@@ -61,6 +61,7 @@ class StudyWorkspaceTest {
         }.createPath(StudySetup("Systems", "Interview", "Beginner", "Balanced", "Next month", "Thai", "ONLINE"))
         assertEquals(1, calls)
         assertEquals(3, path.modules().size)
+        assertTrue(path.modules().all { it.theory.isNotBlank() && it.example.isNotBlank() })
         assertEquals(path, dao.getSession(path.id))
         assertEquals("TOPIC", path.studyKind)
     }

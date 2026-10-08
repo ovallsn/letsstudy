@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,7 +29,7 @@ import com.oriol.letsstudy.ai.StudyOutputParser
 import com.oriol.letsstudy.data.*
 
 @Composable
-fun WorkspaceStudyPath(state: LetsStudyUiState, viewModel: LetsStudyViewModel, onMenu: () -> Unit, onTutor: () -> Unit, onGenerate: (PracticeFormat, LearningModule?, String, Boolean) -> Unit) {
+fun WorkspaceStudyPath(state: LetsStudyUiState, viewModel: LetsStudyViewModel, onMenu: () -> Unit, onTutor: () -> Unit, onProgressCheck: (String, String) -> Unit, onGenerate: (PracticeFormat, LearningModule?, String, Boolean) -> Unit) {
     val session = state.activeSession ?: return
     val questions = state.questions
     var selectedFormat by rememberSaveable(session.id) { mutableStateOf(PracticeFormat.MULTIPLE_CHOICE.name) }
@@ -50,6 +51,7 @@ fun WorkspaceStudyPath(state: LetsStudyUiState, viewModel: LetsStudyViewModel, o
                 when (session.studyKind) {
                     "JOB" -> "INTERVIEW PREPARATION"
                     "MATERIAL" -> "MATERIAL STUDY"
+                    "LANGUAGE" -> "LANGUAGE LEARNING"
                     else -> "TOPIC STUDY"
                 },
                 style = MaterialTheme.typography.labelSmall,
@@ -66,6 +68,13 @@ fun WorkspaceStudyPath(state: LetsStudyUiState, viewModel: LetsStudyViewModel, o
                 LinearProgressIndicator(progress = { if (questions.isEmpty()) 0f else answered.toFloat() / questions.size }, Modifier.fillMaxWidth())
                 if (session.goal.isNotBlank()) Text("Your goal: ${session.goal}")
                 if (session.target.isNotBlank()) Text("Target: ${session.target}", style = MaterialTheme.typography.bodySmall)
+                if (session.studyKind == "LANGUAGE") {
+                    OutlinedButton({ onProgressCheck(session.practiceLanguage, session.level) }, Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.Translate, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Check my ${session.practiceLanguage} level")
+                    }
+                }
                 if (questions.isNotEmpty()) Button({
                     val q = questions.firstOrNull { !it.isAnswered() } ?: questions.first()
                     viewModel.selectQuestion(q, questions)
@@ -77,10 +86,30 @@ fun WorkspaceStudyPath(state: LetsStudyUiState, viewModel: LetsStudyViewModel, o
         }
         items(modules, key = { it.id }) { module ->
             val moduleQuestions = questions.filter { it.moduleId == module.id || it.moduleId.isEmpty() && it.topic == module.title }
+            var showLesson by rememberSaveable(session.id, module.id) { mutableStateOf(false) }
             WorkspaceCard(color = if (selectedModuleId == module.id) LetsStudyColors.Mint else LetsStudyColors.Card) {
                 Text(module.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(module.outcome, style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 Text("${moduleQuestions.count { it.isAnswered() }} / ${moduleQuestions.size} answered", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Primary)
+                if (module.theory.isNotBlank() || module.example.isNotBlank() || module.commonMistake.isNotBlank()) {
+                    TextButton({ showLesson = !showLesson }) { Text(if (showLesson) "Hide lesson" else "Read lesson") }
+                    if (showLesson) {
+                        if (module.theory.isNotBlank()) {
+                            Text("The idea", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                            Text(module.theory, style = MaterialTheme.typography.bodyMedium)
+                        }
+                        if (module.example.isNotBlank()) {
+                            Text("Example", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                            Text(module.example, style = MaterialTheme.typography.bodyMedium)
+                        }
+                        if (module.commonMistake.isNotBlank()) {
+                            Text("Watch for", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                            Text(module.commonMistake, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                } else {
+                    Text("Open the study tutor for a lesson on this topic.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                }
                 Row {
                     TextButton({ selectedModuleId = if (selectedModuleId == module.id) "" else module.id }) { Text(if (selectedModuleId == module.id) "Show all modules" else "Choose module") }
                     if (moduleQuestions.isNotEmpty()) TextButton({ viewModel.selectQuestion(moduleQuestions.firstOrNull { !it.isAnswered() } ?: moduleQuestions.first(), moduleQuestions) }) { Text("Practise") }
@@ -205,7 +234,7 @@ fun WorkspacePractice(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
                     if (objective) TextButton({ viewModel.resetChoice(); selected = -1 }) { Text("Try again") }
                 }
             }
-            item { WorkspaceAction("Understand the whole idea", "Definitions, reasoning and a practical example", Icons.Outlined.MenuBook) { showTheory = true } }
+            item { WorkspaceAction("Understand the whole idea", "Definitions, reasoning and a practical example", Icons.AutoMirrored.Outlined.MenuBook) { showTheory = true } }
             item { WorkspaceAction("Ask your tutor", "Ask a follow-up about this question", Icons.Outlined.ChatBubbleOutline, onTutor) }
             if (question.sourceBasis.isNotBlank()) item { Text("Source basis: ${question.sourceBasis}", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted) }
         }
