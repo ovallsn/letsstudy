@@ -36,24 +36,29 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
     var nickname by rememberSaveable { mutableStateOf("") }
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.account.email, state.account.profileComplete) { viewModel.refreshLeaderboard() }
-    LaunchedEffect(state.leaderboard.nickname) { if (nickname.isBlank()) nickname = state.leaderboard.nickname }
+    LaunchedEffect(state.account.username, state.leaderboard.nickname) {
+        when {
+            state.leaderboard.nickname.isNotBlank() -> nickname = state.leaderboard.nickname
+            nickname.isBlank() -> nickname = state.account.username.orEmpty()
+        }
+    }
     val leaderboard = state.leaderboard
 
     WorkspacePage("Community board", onMenu) {
         item { WorkspaceTitle("A little friendly momentum.", "See how many study points people have earned this week.") }
         item {
             WorkspaceCard(color = LetsStudyColors.Mint) {
-                Text("Optional and separate from your private profile", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text("Joining publishes the nickname you choose and your points for the current week. You earn 10 points per answered question and 1 point per five tracked study minutes, up to 500 points each week. Your email, username, study topics, questions and answers stay private. Points are self-reported and meant for encouragement, not a verified competition.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("What other learners will see", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("When you join, other learners see this name and your weekly points. We prefill it with your Let’sStudy username; keep it or choose another name. Your email, profile display name, study topics, questions and answers stay private. Joining is optional.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
         if (state.account.email == null || !state.account.profileComplete) item {
             WorkspaceEmpty("Sign in to join", "Create or complete your learner profile in Settings to use the optional community board.")
         } else if (!leaderboard.enabled) item {
             WorkspaceCard {
-                Text("Choose a board nickname", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                WorkspaceField(nickname, { nickname = it }, "Public nickname", maxLength = 24)
-                Text("Use a nickname rather than your email or full name. You can turn this off at any time.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("Choose the name people will see", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                WorkspaceField(nickname, { nickname = it }, "Name shown on the board", maxLength = 24)
+                Text("This exact name and your weekly points appear on the leaderboard after you join. You can leave the board at any time.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 Button(onClick = { viewModel.enableLeaderboard(nickname) }, enabled = nickname.trim().length in 2..24 && !leaderboard.isLoading, modifier = Modifier.fillMaxWidth()) {
                     Text("Join the community board")
                 }
