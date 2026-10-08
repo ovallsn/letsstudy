@@ -98,7 +98,6 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
         learnerName = if (state.account.email != null) state.account.displayName.orEmpty() else state.settings.name,
         avatarId = if (state.account.email != null && state.account.avatarLoaded) state.account.avatarId else state.settings.avatarId,
         photoPath = state.settings.photoPath,
-        hasReminder = state.settings.dailyReminder || state.settings.weeklySummary,
     )
     ModalNavigationDrawer(drawerState = drawer, drawerContent = {
         ModalDrawerSheet(modifier = Modifier.widthIn(max = 248.dp), drawerContainerColor = LetsStudyColors.Canvas) {

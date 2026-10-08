@@ -424,7 +424,13 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
                 val path = withContext(Dispatchers.IO) { profilePhotoStore.save(uri) }
                 saveSettings(_uiState.value.settings.copy(photoPath = path))
             } catch (error: Exception) {
-                _uiState.update { it.copy(errorMessage = "This photo could not be used. Choose another image and try again.") }
+                Log.w("LetsStudyProfile", "Photo import failed (${error.javaClass.simpleName}).")
+                val message = when (error) {
+                    is SecurityException -> "Let’sStudy couldn’t access that image. Select it again and try once more."
+                    is IOException -> "Let’sStudy couldn’t read that image. Choose a PNG or JPEG and try again."
+                    else -> "Let’sStudy couldn’t prepare that image. Choose a PNG or JPEG and try again."
+                }
+                _uiState.update { it.copy(errorMessage = message) }
             } finally {
                 _uiState.update { it.copy(workspaceBusy = false, workspaceStatus = "") }
             }
@@ -534,9 +540,13 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun leaderboardMessage(error: Exception): String = when (error) {
-        is com.google.firebase.firestore.FirebaseFirestoreException -> if (error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-            "Firebase denied the leaderboard request. Publish the updated Firestore rules from the project README."
-        } else "The community board couldn't load. Your private studies are safe. Try again when you're online."
+        is com.google.firebase.firestore.FirebaseFirestoreException -> when {
+            error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                "Firebase denied the leaderboard request. Publish the updated Firestore rules from the project README."
+            error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.FAILED_PRECONDITION && error.message.orEmpty().contains("index", ignoreCase = true) ->
+                "The community board is still finishing its database setup. Your private studies are safe. Try again shortly."
+            else -> "The community board couldn't load. Your private studies are safe. Try again when you're online."
+        }
         is IllegalArgumentException, is IllegalStateException -> error.message ?: "Check your account and try again."
         else -> "The community board couldn't load. Your private studies are safe. Try again when you're online."
     }

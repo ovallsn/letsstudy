@@ -48,7 +48,6 @@ data class WorkspaceHeaderActions(
     val learnerName: String = "",
     val avatarId: String = LearnerAvatarIds.DEFAULT,
     val photoPath: String = "",
-    val hasReminder: Boolean = false,
 )
 
 val LocalWorkspaceHeaderActions = staticCompositionLocalOf { WorkspaceHeaderActions() }
@@ -102,13 +101,7 @@ fun WorkspaceTopBar(title: String, onMenu: () -> Unit, trailing: @Composable (()
                 Icon(Icons.Outlined.Search, null, tint = LetsStudyColors.Muted, modifier = Modifier.size(19.dp))
             }
             HeaderActionButton(actions.onNotifications, "Study reminders") {
-                Box {
-                    Icon(Icons.Outlined.NotificationsNone, null, tint = LetsStudyColors.Muted, modifier = Modifier.size(19.dp))
-                    if (actions.hasReminder) {
-                        Box(Modifier.align(Alignment.TopEnd).offset(x = (-1).dp, y = 1.dp).size(6.dp)
-                            .background(LetsStudyColors.Clay, CircleShape))
-                    }
-                }
+                Icon(Icons.Outlined.NotificationsNone, null, tint = LetsStudyColors.Muted, modifier = Modifier.size(19.dp))
             }
             HeaderActionButton(actions.onProfile, actions.learnerName.takeIf(String::isNotBlank)?.let { "Profile for $it" } ?: "Profile and settings") {
                 WorkspaceAvatar(actions.avatarId, 32.dp, photoPath = actions.photoPath)
