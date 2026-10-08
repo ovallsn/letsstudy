@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.oriol.letsstudy.data.UsernamePolicy
 
 @Composable
 fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel, onMenu: () -> Unit) {
@@ -49,17 +50,18 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
         item {
             WorkspaceCard(color = LetsStudyColors.Mint) {
                 Text("What other learners will see", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text("When you join, other learners see this name and your weekly points. We prefill it with your Let’sStudy username; keep it or choose another name. Your email, profile display name, study topics, questions and answers stay private. Joining is optional.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("When you join, other learners see this username and your weekly points. Keep your Let’sStudy username or choose another one that follows the community rules. Your email, profile display name, study topics, questions and answers stay private. Joining is optional.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
         if (state.account.email == null || !state.account.profileComplete) item {
             WorkspaceEmpty("Sign in to join", "Create or complete your learner profile in Settings to use the optional community board.")
         } else if (!leaderboard.enabled) item {
             WorkspaceCard {
-                Text("Choose the name people will see", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                WorkspaceField(nickname, { nickname = it }, "Name shown on the board", maxLength = 24)
+                Text("Choose the username people will see", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                WorkspaceField(nickname, { nickname = it }, "Username shown on the board", maxLength = 20)
+                Text("Use 3–20 letters, numbers or underscores. Offensive words and reserved names are not accepted.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 Text("This exact name and your weekly points appear on the leaderboard after you join. You can leave the board at any time.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
-                Button(onClick = { viewModel.enableLeaderboard(nickname) }, enabled = nickname.trim().length in 2..24 && !leaderboard.isLoading, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { viewModel.enableLeaderboard(nickname) }, enabled = UsernamePolicy.isAllowed(nickname) && !leaderboard.isLoading, modifier = Modifier.fillMaxWidth()) {
                     Text("Join the community board")
                 }
             }
@@ -112,7 +114,7 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
     if (confirmLeave) AlertDialog(
         onDismissRequest = { confirmLeave = false },
         title = { Text("Leave the community board?") },
-        text = { Text("Your nickname and score will be removed from the public board. Your private studies and account will stay as they are.") },
+        text = { Text("Your community username and score will be removed from the public board. Your private studies and account will stay as they are.") },
         confirmButton = { TextButton(onClick = { viewModel.disableLeaderboard(); confirmLeave = false }) { Text("Leave board") } },
         dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Stay") } },
     )

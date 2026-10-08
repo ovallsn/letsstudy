@@ -13,6 +13,8 @@ data class LanguagePlacementBandScore(val band: String, val correct: Int, val to
 data class LanguagePlacementResult(
     val language: String,
     val level: String,
+    val estimatedRange: String,
+    val startingLevel: String,
     val correct: Int,
     val total: Int,
     val bandScores: List<LanguagePlacementBandScore>,
@@ -120,10 +122,18 @@ object LanguagePlacementTest {
         val scores = bands.map { band ->
             LanguagePlacementBandScore(band, questions.zip(selectedAnswers).count { (question, selected) -> question.band == band && question.answerIndex == selected })
         }
-        var level = "Pre-A1"
-        for (score in scores) {
-            if (score.correct < 3) break
-            level = score.band
+        val firstUnpassedIndex = scores.indexOfFirst { it.correct < 3 }
+        val foundationIndex = if (firstUnpassedIndex < 0) scores.lastIndex else firstUnpassedIndex - 1
+        val level = scores.getOrNull(foundationIndex)?.band ?: "Pre-A1"
+        val frontier = scores.getOrNull(foundationIndex + 1)
+        val transitionBand = frontier?.takeIf { it.correct >= 2 }
+        val startingLevel = transitionBand?.band ?: level
+        val estimatedRange = when {
+            foundationIndex < 0 && transitionBand != null -> "Pre-A1–A1"
+            foundationIndex < 0 -> "Pre-A1"
+            foundationIndex == scores.lastIndex -> "C1+"
+            transitionBand != null -> "$level–${transitionBand.band}"
+            else -> level
         }
         val next = scores.firstOrNull { it.correct < 3 }?.band ?: "C2"
         val focus = when (next) {
@@ -131,7 +141,7 @@ object LanguagePlacementTest {
             "Pre-A1" -> "A1 everyday words and sentence patterns"
             else -> "$next vocabulary, grammar and reading"
         }
-        return LanguagePlacementResult(language, level, scores.sumOf { it.correct }, questions.size, scores, focus)
+        return LanguagePlacementResult(language, level, estimatedRange, startingLevel, scores.sumOf { it.correct }, questions.size, scores, focus)
     }
 
     private fun item(band: String, prompt: String, answerIndex: Int, explanation: String, vararg options: String) =

@@ -18,9 +18,17 @@ service cloud.firestore {
       return /databases/$(database)/documents/leaderboardOwners/$(entryId);
     }
 
-    function validLeaderboardNickname(value) {
+    function validUsername(value) {
       return value is string
-        && value.matches('^[^@]{2,24}$');
+        && value.size() >= 3
+        && value.size() <= 20
+        && value.matches('^[a-z0-9]+(_[a-z0-9]+)*$')
+        && !value.matches('.*(asshole|bastard|bitch|cabron|connard|cunt|fuck|fag|gilipollas|joder|maricon|merde|mierda|motherfucker|nigga|nigger|pendejo|porn|puta|putain|puto|salope|shit|slut|whore).*')
+        && !value.matches('^(admin|administrator|help|letsstudy|moderator|official|root|support|system)([0-9_].*)?$');
+    }
+
+    function validLeaderboardNickname(value) {
+      return validUsername(value);
     }
 
     function validLeaderboardOwner(entryId, owner) {
@@ -62,7 +70,7 @@ service cloud.firestore {
         && profile.displayName.size() > 0
         && profile.displayName.size() <= 80
         && profile.username is string
-        && profile.username.matches('^[a-z0-9_]{3,20}$')
+        && validUsername(profile.username)
         && profile.updatedAt is timestamp;
     }
 
@@ -108,7 +116,7 @@ service cloud.firestore {
       allow get: if request.auth != null;
       allow list: if false;
       allow create: if request.auth != null
-        && username.matches('^[a-z0-9_]{3,20}$')
+        && validUsername(username)
         && request.resource.data.keys().hasOnly(['username'])
         && request.resource.data.keys().hasAll(['username'])
         && request.resource.data.username == username

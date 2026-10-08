@@ -113,9 +113,9 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
                         destination == AppDestination.REVIEW_DUE -> WorkspaceReviewDue(state, menu) { question -> destination = AppDestination.SESSION; viewModel.openDueQuestion(question) }
                         destination == AppDestination.LANGUAGE_CHECK -> WorkspaceLevelCheck(menu) { result ->
                             initialTopic = "${result.language} language practice"
-                            initialLevel = result.level
+                            initialLevel = result.startingLevel
                             initialLanguage = result.language
-                            initialGoal = "Use my approximate written-language placement result (${result.correct}/${result.total}; ${result.level}) to focus on ${result.nextFocus}. Build practical vocabulary, grammar and reading lessons at this level."
+                            initialGoal = "Use my approximate written-language placement range (${result.correct}/${result.total}; ${result.estimatedRange}) and start around ${result.startingLevel}. Focus on ${result.nextFocus}. Build practical vocabulary, grammar and reading lessons at this level."
                             destination = AppDestination.TOPIC
                         }
                         destination == AppDestination.LEADERBOARD -> WorkspaceLeaderboard(state, viewModel, menu)

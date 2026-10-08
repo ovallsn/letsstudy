@@ -396,15 +396,13 @@ private fun LearnerIdentityFields(
 ) {
     WorkspaceField(displayName, onDisplayNameChange, "Display name", maxLength = 80, enabled = enabled)
     WorkspaceField(username, onUsernameChange, "Username", maxLength = 20, enabled = enabled)
-    val usernameValid = USERNAME_PATTERN.matches(username.trim())
+    val usernameValid = UsernamePolicy.isAllowed(username)
     if (username.isNotBlank() && !usernameValid) {
-        Text("Use 3–20 English letters, numbers or underscores.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        Text("Use 3–20 letters, numbers or underscores. Offensive words and reserved names are not accepted.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     } else {
-        Text("Use 3–20 English letters, numbers or underscores. Usernames are not public by default.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+        Text("Use 3–20 letters, numbers or underscores. Offensive words and reserved names are not accepted. Usernames are private unless you join the community board.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
     }
 }
 
 private fun profileIsValid(displayName: String, username: String) =
-    displayName.trim().isNotEmpty() && displayName.trim().length <= 80 && USERNAME_PATTERN.matches(username.trim())
-
-private val USERNAME_PATTERN = Regex("[A-Za-z0-9_]{3,20}")
+    displayName.trim().isNotEmpty() && displayName.trim().length <= 80 && UsernamePolicy.isAllowed(username)

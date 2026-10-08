@@ -231,7 +231,7 @@ class StudyAccountSync(private val dao: StudyDao) {
             }
             val name = snapshot.getString("displayName")?.trim()?.takeIf(String::isNotEmpty)
             val username = snapshot.getString("username")?.trim()?.lowercase(Locale.ROOT)
-                ?.takeIf { USERNAME_PATTERN.matches(it) }
+                ?.takeIf { UsernamePolicy.isAllowed(it) }
             val complete = name != null && username != null
             var authNameUpdated = true
             if (complete && user.displayName != name) {
@@ -360,9 +360,7 @@ class StudyAccountSync(private val dao: StudyDao) {
     }
 
     private fun normalizeUsername(value: String): String {
-        val username = value.trim()
-        require(USERNAME_PATTERN.matches(username)) { "Use 3–20 letters, numbers or underscores for your username." }
-        return username.lowercase(Locale.ROOT)
+        return UsernamePolicy.normalize(value)
     }
 
     private fun requestReconcile() {
@@ -634,6 +632,5 @@ class StudyAccountSync(private val dao: StudyDao) {
         private const val FIRESTORE_BATCH_SIZE = 400
         private const val SYNC_TIMEOUT_MILLIS = 25_000L
         private const val ACCOUNT_DELETE_TIMEOUT_MILLIS = 180_000L
-        private val USERNAME_PATTERN = Regex("[A-Za-z0-9_]{3,20}")
     }
 }

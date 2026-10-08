@@ -44,6 +44,10 @@ class StudyLeaderboardRepository(
         val entryId = settings.getString("entryId").orEmpty()
         val enabled = settings.getBoolean("enabled") == true && entryId.isNotBlank()
         val nickname = settings.getString("displayName").orEmpty()
+        if (enabled && !UsernamePolicy.isAllowed(nickname)) {
+            removeEnrollment(uid)
+            return StudyLeaderboardState(error = "Your previous board username no longer follows the community rules. Choose a new one to join again.")
+        }
         val query = firestore.collection(PUBLIC_COLLECTION)
             .whereEqualTo("weekKey", currentWeekKey())
             .orderBy("weeklyPoints", Query.Direction.DESCENDING)
@@ -54,8 +58,10 @@ class StudyLeaderboardRepository(
             enabled = enabled,
             nickname = nickname,
             myEntryId = entryId.takeIf { enabled },
-            entries = query.documents.map { document ->
-                StudyLeaderboardEntry(document.id, document.getString("displayName").orEmpty(), document.getLong("weeklyPoints")?.toInt() ?: 0)
+            entries = query.documents.mapNotNull { document ->
+                val displayName = document.getString("displayName").orEmpty()
+                if (!UsernamePolicy.isAllowed(displayName)) return@mapNotNull null
+                StudyLeaderboardEntry(document.id, displayName, document.getLong("weeklyPoints")?.toInt() ?: 0)
             },
         )
     }
@@ -73,7 +79,7 @@ class StudyLeaderboardRepository(
         val settings = settingsReference(uid).get().await()
         if (settings.getBoolean("enabled") != true) return
         val entryId = settings.getString("entryId")?.takeIf(String::isNotBlank) ?: return
-        val nickname = settings.getString("displayName")?.takeIf(String::isNotBlank) ?: return
+        val nickname = settings.getString("displayName")?.takeIf { UsernamePolicy.isAllowed(it) } ?: return
         val score = weeklyPoints.coerceIn(0, MAX_WEEKLY_POINTS)
         val weekKey = currentWeekKey()
         val publicEntry = publicReference(entryId).get().await()
@@ -153,10 +159,7 @@ class StudyLeaderboardRepository(
     private fun publicReference(entryId: String) = firestore.collection(PUBLIC_COLLECTION).document(entryId)
 
     private fun safeDisplayName(value: String): String {
-        val clean = value.trim().replace(Regex("\\s+"), " ")
-        require(clean.length in 2..24) { "Choose a board nickname between 2 and 24 characters." }
-        require(clean.none(Char::isISOControl) && !clean.contains('@')) { "Use a nickname, not an email address." }
-        return clean
+        return UsernamePolicy.normalize(value)
     }
 
     private fun currentWeekKey(): String {

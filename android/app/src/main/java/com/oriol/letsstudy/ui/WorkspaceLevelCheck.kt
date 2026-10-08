@@ -93,9 +93,14 @@ fun WorkspaceLevelCheck(onMenu: () -> Unit, onBuildPath: (LanguagePlacementResul
         } else {
             item {
                 WorkspaceCard(color = LetsStudyColors.Mint) {
-                    Text("Your approximate result", style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
-                    Text("${placement.level} · ${levelName(placement.level)}", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("Your estimated range", style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                    Text(placement.estimatedRange, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text("${placement.correct} of ${placement.total} correct in ${placement.language}.", style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+                    Text(
+                        if (placement.startingLevel != placement.level) "You showed a solid foundation through ${placement.level} and some ${placement.startingLevel} skills. Start around ${placement.startingLevel} and adjust as you study."
+                        else "Use this as a starting point, not a judgment. Start around ${placement.startingLevel} and adjust as you study.",
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                    )
                     Text("This short check samples written vocabulary, grammar and reading. It does not measure speaking, listening or writing, and is not an official CEFR or EF SET result.", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 }
             }
@@ -137,14 +142,4 @@ fun WorkspaceLevelCheck(onMenu: () -> Unit, onBuildPath: (LanguagePlacementResul
 
 private fun androidx.compose.foundation.lazy.LazyListScope.itemsForPlacement(count: Int, item: @Composable (Int) -> Unit) {
     items(count, key = { "placement-review-$it" }) { item(it) }
-}
-
-private fun levelName(level: String) = when (level) {
-    "Pre-A1" -> "Getting started"
-    "A1" -> "Beginner"
-    "A2" -> "Elementary"
-    "B1" -> "Intermediate"
-    "B2" -> "Upper intermediate"
-    "C1" -> "Advanced"
-    else -> level
 }
