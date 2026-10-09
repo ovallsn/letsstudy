@@ -588,9 +588,9 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     private fun leaderboardMessage(error: Exception): String = when (error) {
         is com.google.firebase.firestore.FirebaseFirestoreException -> when {
             error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED ->
-                "Firebase denied the leaderboard request. Publish the updated Firestore rules from the project README."
+                "We couldn't open the community board. Your private studies are safe."
             error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.FAILED_PRECONDITION && error.message.orEmpty().contains("index", ignoreCase = true) ->
-                "The community board is still finishing its database setup. Your private studies are safe. Try again shortly."
+                "The community board isn't ready yet. Your private studies are safe."
             else -> "The community board couldn't load. Your private studies are safe. Try again when you're online."
         }
         is IllegalArgumentException, is IllegalStateException -> error.message ?: "Check your account and try again."
@@ -656,18 +656,11 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     private fun friendlyMessage(error: Exception): String = when (error) {
         is StudyGenerationException -> {
             error.cause?.message?.let { Log.w("LetsStudyAI", it) }
-            error.message
+            StudyGenerationCopy.forGenerationError(error.code, error.message)
         }
-        is ModelUnavailableException -> "Download the on-device model before starting a study."
-        is InvalidStudyOutputException -> error.message
-        is IOException -> "There's no internet connection. Check your connection and try again."
-        else -> when {
-            error.javaClass.simpleName.contains("Quota", ignoreCase = true) || error.message.orEmpty().contains("quota", ignoreCase = true) ->
-                "Fast Online is temporarily unavailable. Try again later or choose On-device study."
-            error.message.orEmpty().contains("App Check", ignoreCase = true) ->
-                "Firebase App Check could not verify this build. Check the app registration and try again."
-            else -> "The online study service could not finish this round. Try again or choose On-device mode. Your saved progress is safe."
-        }
+        is ModelUnavailableException -> "This study option needs a one-time download. Open Settings to get it ready."
+        is InvalidStudyOutputException -> "We couldn't finish this study. Try again in a moment. Your saved studies are safe."
+        else -> StudyGenerationCopy.onlineFailure(error)
     }
 
     class Factory(private val application: Application) : androidx.lifecycle.ViewModelProvider.Factory {

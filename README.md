@@ -1,5 +1,7 @@
 # Let’sStudy
 
+[![Android checks](https://github.com/ovallsn/letsstudy/actions/workflows/android.yml/badge.svg)](https://github.com/ovallsn/letsstudy/actions/workflows/android.yml)
+
 <p align="center"><img src="docs/letsstudy-icon.png" alt="Let’sStudy open-book and sprout icon" width="150"></p>
 
 > **Not feeling ready for your next interview? Let’sStudy turns a job description into focused practice, one question at a time.**
@@ -134,6 +136,10 @@ The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. A suc
 
 Run `./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleRelease` for checks and the distribution build. The release APK is unsigned until the maintainer supplies private signing configuration. Debug builds require device-specific App Check registration and are intended for development.
 
+### Automated checks
+
+GitHub Actions runs unit tests, Android lint, and an unsigned release build for changes to `main` and pull requests. The workflow creates a temporary placeholder Firebase file for compilation, removes it afterward, and never connects to a live Firebase project. Local debug builds still need the developer's own `google-services.json`.
+
 ## License
 
-The repository includes notices for third-party model and runtime components. Let’sStudy itself does not currently declare an open-source license.
+Let’sStudy is released under the MIT License in [`LICENSE`](LICENSE). Third-party libraries, fonts, and model components retain their own terms; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

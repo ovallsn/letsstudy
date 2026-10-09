@@ -61,6 +61,12 @@ fun WorkspaceStudyPath(state: LetsStudyUiState, viewModel: LetsStudyViewModel, o
             WorkspaceTitle(session.title, session.summary)
             Spacer(Modifier.height(12.dp))
             Text("${session.practiceLanguage} · ${session.level}", color = LetsStudyColors.Primary, style = MaterialTheme.typography.labelMedium)
+            if (session.sourceLabel.isNotBlank()) {
+                Text("Study source · ${session.sourceLabel.take(180)}", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+            }
+            if (session.studyKind == "JOB") {
+                Text("Role-focused practice suggestions; exact interview questions can vary.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+            }
         }
         item {
             WorkspaceCard(color = LetsStudyColors.Mint) {
@@ -120,7 +126,7 @@ fun WorkspaceStudyPath(state: LetsStudyUiState, viewModel: LetsStudyViewModel, o
             WorkspaceCard {
                 Text(if (selectedModule == null) "Keep your curiosity moving" else "Practise ${selectedModule.title}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 WorkspaceSelect("Practice format", PracticeFormat.valueOf(selectedFormat).label, PracticeFormat.entries.map { it.label }) { label -> selectedFormat = PracticeFormat.entries.first { it.label == label }.name }
-                WorkspaceSelect("Study mode", if (mode == "ONLINE") "Fast online" else "On-device", listOf("Fast online", "On-device")) { mode = if (it == "Fast online") "ONLINE" else "OFFLINE" }
+                WorkspaceGenerationModeSelector(mode) { mode = it }
                 Button({ onGenerate(PracticeFormat.valueOf(selectedFormat), selectedModule, mode, false) }, Modifier.fillMaxWidth(), enabled = !state.workspaceBusy && !state.isGenerating) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text("Add 15 new questions") }
             }
         }
@@ -236,7 +242,12 @@ fun WorkspacePractice(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
             }
             item { WorkspaceAction("Understand the whole idea", "Definitions, reasoning and a practical example", Icons.AutoMirrored.Outlined.MenuBook) { showTheory = true } }
             item { WorkspaceAction("Ask your tutor", "Ask a follow-up about this question", Icons.Outlined.ChatBubbleOutline, onTutor) }
-            if (question.sourceBasis.isNotBlank()) item { Text("Source basis: ${question.sourceBasis}", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted) }
+            if (question.sourceBasis.isNotBlank()) item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(if (state.activeSession.studyKind == "JOB") "Why it may come up" else "Why this is useful", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Primary, fontWeight = FontWeight.SemiBold)
+                    Text(question.sourceBasis, style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                }
+            }
         }
     }
     if (showExplanation) AlertDialog(onDismissRequest = { showExplanation = false }, title = { Text(if (selected == question.correctOptionIndex) "That's right!" else "Let's understand why") },

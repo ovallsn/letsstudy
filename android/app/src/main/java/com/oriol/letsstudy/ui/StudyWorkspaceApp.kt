@@ -145,7 +145,6 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
                         NavigationDrawerItem(label = { Text(title) }, selected = destination == route, onClick = { navigate(route) }, icon = { Icon(icon, null) })
                     } }
                 }
-                item { HorizontalDivider(Modifier.padding(vertical = 8.dp)); Text("Your studies stay on this phone, with optional account sync.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) }
             }
         }
     }) {
@@ -198,7 +197,7 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
     val pendingDelete = state.sessions.firstOrNull { it.id == pendingDeleteId }
     if (pendingDelete != null) AlertDialog(onDismissRequest = { pendingDeleteId = null }, title = { Text("Delete this study?") }, text = { Text(if (state.account.email == null) "“${pendingDelete.title}”, its questions, conversations and progress will be removed from this phone." else "“${pendingDelete.title}”, its questions, conversations and progress will be removed from this phone and your synced devices.") },
         confirmButton = { TextButton({ viewModel.deleteSession(pendingDelete.id); pendingDeleteId = null }) { Text("Delete") } }, dismissButton = { TextButton({ pendingDeleteId = null }) { Text("Keep study") } })
-    if (onlineAction != null) AlertDialog(onDismissRequest = { onlineAction = null }, title = { Text("Use Fast Online") }, text = { Text("To prepare study content, relevant material and any answers or messages you submit are sent to Google Gemini. This free service has a shared usage limit and may be temporarily unavailable.") },
+    if (onlineAction != null) AlertDialog(onDismissRequest = { onlineAction = null }, title = { Text("Study online?") }, text = { Text("To prepare your study, the material you provide and any answers or messages you submit are sent to Google for processing. The service has shared usage limits and may sometimes be unavailable. Your saved studies stay available on this phone.") },
         confirmButton = { TextButton({ viewModel.saveSettings(state.settings.copy(onlineDisclosureAccepted = true)); val action = onlineAction; onlineAction = null; action?.invoke() }) { Text("Continue") } }, dismissButton = { TextButton({ onlineAction = null }) { Text("Cancel") } })
     if (busy) Dialog(onDismissRequest = {}) {
         WorkspaceCard {

@@ -154,7 +154,7 @@ object LanguagePlacementTest {
         ),
         "Spanish" to listOf(
             item("A1", "Mis amigos ___ en Madrid.", 2, "Use ‘viven’ with the plural subject ‘mis amigos’. ", "vivo", "vive", "viven", "vivimos"),
-            item("A1", "¿___ tienes una hermana?", 0, "The question asks whether ‘you’ have a sister: ‘¿Tienes…?’ ", "Tienes", "Tiene", "Tenemos", "Tener"),
+            item("A1", "Tú ___ una hermana.", 0, "Con el sujeto «tú», el presente de «tener» es «tienes». ", "tienes", "tiene", "tenemos", "tener"),
             item("A1", "La tienda ___ a las nueve.", 1, "A shop opening time uses ‘abre’. ", "abren", "abre", "abro", "abrir"),
             item("A1", "Nosotros ___ español en clase.", 3, "The ‘nosotros’ form of ‘estudiar’ is ‘estudiamos’. ", "estudian", "estudio", "estudiáis", "estudiamos"),
             item("A2", "Cuando era pequeña, ___ al parque cada tarde.", 1, "A repeated past habit takes the imperfect ‘iba’. ", "fui", "iba", "iré", "he ido"),

@@ -72,7 +72,7 @@ fun WorkspaceLevelCheck(
         item {
             WorkspaceTitle(
                 if (isProgressCheck) "See how far you’ve come." else "Find your starting point.",
-                if (isProgressCheck) "A fresh check helps shape your next step in ${language}." else "A short, original check to guide your language study—not a certificate or a self-rating.",
+                if (isProgressCheck) "A fresh check helps shape your next step in ${language}." else "A short check to find a comfortable place to begin.",
             )
         }
         item {
@@ -80,7 +80,7 @@ fun WorkspaceLevelCheck(
                 WorkspaceSelect("Language to assess", language, LanguagePlacementTest.languages) {
                     language = it
                 }
-            Text("20 questions · reading, grammar and vocabulary · a guide, not a pass/fail exam", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+            Text("20 questions · reading, grammar and vocabulary · study guidance, not a pass or fail", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
         if (questionIndex < questions.size) {
@@ -125,12 +125,9 @@ fun WorkspaceLevelCheck(
         } else {
             item {
                 WorkspaceCard(color = LetsStudyColors.Mint) {
-                    Text(if (isProgressCheck) "Your progress check" else "A good place to start", style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
-                    Text(if (isProgressCheck) placement.estimatedRange else placement.startingLevel, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(if (isProgressCheck) "Your progress check" else "Your approximate range", style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                    Text(placement.estimatedRange, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text("${placement.correct} of ${placement.total} correct in ${placement.language}.", style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
-                    if (!isProgressCheck && placement.estimatedRange != placement.startingLevel) {
-                        Text("Your answers also show some skills around ${placement.estimatedRange.substringAfter('–')}.", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-                    }
                     Text("We consider your whole answer pattern, so one difficult band won’t cancel stronger answers elsewhere.", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
                     if (isProgressCheck) {
                         Text("Your current study level: $previousLevel", style = androidx.compose.material3.MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -139,8 +136,12 @@ fun WorkspaceLevelCheck(
                             else "Your study level remains $previousLevel. A single check will not lower it; you can check again after more practice.",
                             style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                         )
-                    } else Text(placementGuidance(placement.level, placement.startingLevel), style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-                    Text("This short check samples written vocabulary, grammar and reading. It is not a grade or an official CEFR or EF SET result, and it cannot measure speaking, listening or writing. You can change your study level at any time.", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                    } else {
+                        Text("Suggested starting point: ${effectivePlacement.startingLevel}", style = androidx.compose.material3.MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(placementGuidance(placement.level, effectivePlacement.startingLevel), style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                    }
+                    Text("A short written check can miss some of what you know. Use this as a study suggestion, not a limit on your ability; you can choose another level any time.", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                    Text("It samples written vocabulary, grammar and reading. It is not an official CEFR or EF SET result and does not measure speaking, listening or writing.", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 }
             }
             item {
@@ -205,14 +206,15 @@ fun WorkspacePlacementResultScreen(
     val currentLevel = attempt.progressLevel.ifBlank { attempt.startingLevel }
 
     WorkspacePage("Language check", onMenu) {
-        item { WorkspaceTitle(if (attempt.attemptType == "PROGRESS_CHECK") "Your learning progress." else "Your starting point.", "$completedDate · ${attempt.language}") }
+        item { WorkspaceTitle(if (attempt.attemptType == "PROGRESS_CHECK") "Your learning progress." else "Your language check.", "$completedDate · ${attempt.language}") }
         item {
             WorkspaceCard(color = LetsStudyColors.Mint) {
-                Text("YOUR STARTING POINT", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
-                Text(attempt.startingLevel, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("${attempt.correct} of ${attempt.total} correct · estimated range ${attempt.estimatedRange}.", style = MaterialTheme.typography.bodyMedium)
-                Text("This is a study recommendation based on the whole answer pattern, not a pass/fail score.", style = MaterialTheme.typography.bodyMedium)
-                Text(placementGuidance(attempt.level, attempt.startingLevel), style = MaterialTheme.typography.bodyMedium)
+                Text("YOUR APPROXIMATE RANGE", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                Text(attempt.estimatedRange, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("${attempt.correct} of ${attempt.total} correct in ${attempt.language}.", style = MaterialTheme.typography.bodyMedium)
+                Text("Suggested starting point: $currentLevel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("This is a study recommendation based on the whole answer pattern, not a pass or fail score.", style = MaterialTheme.typography.bodyMedium)
+                Text(placementGuidance(attempt.level, currentLevel), style = MaterialTheme.typography.bodyMedium)
                 if (attempt.attemptType == "PROGRESS_CHECK") {
                     Text("Study level: $currentLevel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
@@ -221,7 +223,7 @@ fun WorkspacePlacementResultScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                Text("This short check samples written vocabulary, grammar and reading. It is not a grade or an official CEFR or EF SET result, and it cannot measure speaking, listening or writing. You can change your study level at any time.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("A short written check can miss some of what you know. Use it as a study suggestion, not a limit on your ability; choose another level any time. It is not an official CEFR or EF SET result and does not measure speaking, listening or writing.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
         item {

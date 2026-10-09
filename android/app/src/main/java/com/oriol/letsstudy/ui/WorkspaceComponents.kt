@@ -244,6 +244,24 @@ fun WorkspaceSelect(label: String, value: String, options: List<String>, onSelec
     }
 }
 
+fun generationModeLabel(mode: String): String = if (mode == "ONLINE") "Quick online" else "On this phone"
+
+fun generationModeValue(label: String): String = if (label == "Quick online") "ONLINE" else "OFFLINE"
+
+@Composable
+fun WorkspaceGenerationModeSelector(mode: String, onModeChange: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        WorkspaceSelect(
+            "Question generation",
+            generationModeLabel(mode),
+            listOf("Quick online", "On this phone"),
+        ) { onModeChange(generationModeValue(it)) }
+        if (mode != "ONLINE") {
+            Text("Needs a one-time download. Creating a set may take longer.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+        }
+    }
+}
+
 @Composable fun WorkspaceField(value: String, onValueChange: (String) -> Unit, label: String, minLines: Int = 1, maxLength: Int = 8000, enabled: Boolean = true) {
     OutlinedTextField(value, { onValueChange(it.take(maxLength)) }, Modifier.fillMaxWidth(), enabled = enabled, label = { Text(label) },
         shape = RoundedCornerShape(14.dp), minLines = minLines, maxLines = if (minLines == 1) 3 else 8,

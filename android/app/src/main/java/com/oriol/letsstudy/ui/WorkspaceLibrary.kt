@@ -171,7 +171,7 @@ fun WorkspaceProgress(
                     Modifier.weight(1f),
                 )
             }
-            Text("Mastered means a correct objective answer, a ‘Know it’ rating or AI feedback of 80+.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 8.dp))
+            Text("Mastered means a correct objective answer, a ‘Know it’ rating or written feedback of 80+.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 8.dp))
         }
         item {
             WorkspaceCard {
@@ -343,8 +343,7 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
                     color = LetsStudyColors.Muted,
                 )
                 WorkspaceField(settings.language, { viewModel.saveSettings(settings.copy(language = it)) }, "Default study language", maxLength = 80)
-                WorkspaceSelect("Preferred study mode", if (settings.mode == "ONLINE") "Fast online" else "On-device", listOf("Fast online", "On-device")) { viewModel.saveSettings(settings.copy(mode = if (it == "Fast online") "ONLINE" else "OFFLINE")) }
-                Text("Fast online is quicker. On-device study may take longer and requires a one-time model download.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                WorkspaceGenerationModeSelector(settings.mode) { viewModel.saveSettings(settings.copy(mode = it)) }
             }
         }
         item {
@@ -369,7 +368,7 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
         item {
             WorkspaceCard {
                 Text("Privacy & your data", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Your studies are saved on this phone. If you enable account sync, your profile and study library are stored in Firebase. Fast Online sends relevant study material and submitted answers or tutor messages to Google Gemini. On-device study generation uses the model installed on your phone; tutor messages and deeper lessons still use Google Gemini. Scanned PDFs are read on your phone, though Google ML Kit may send service metrics. The optional community board shows your chosen name and weekly points after you join; your email and study content stay private.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("Your studies are saved on this phone. If you enable account sync, your profile and study library are stored in your private account. When you choose online study, the material you provide and any answers or tutor messages you submit are sent to Google for processing. Study generation on this phone uses a one-time download; tutor messages and deeper lessons still use the online service. Scanned PDFs are read on your phone. The optional community board shows your chosen name and weekly points after you join; your email and study content stay private.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 TextButton({ clearConfirm = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete all study data") }
                 TextButton({ showNotices = true }) { Text("Third-party licenses") }
             }
@@ -467,7 +466,7 @@ private fun AccountSyncPanel(account: StudyAccountState, localDisplayName: Strin
             Text("You can study as a guest. Create an account only if you want your private study library to sync across devices.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             if (createMode) {
                 LearnerIdentityFields(displayName, { displayName = it }, username, { username = it }, enabled = !account.isBusy)
-                Text("Your profile is not listed publicly. A future leaderboard would require separate consent.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("Your profile stays private. The optional community board shows your chosen name and weekly points only after you join.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
             WorkspaceField(email, { email = it }, "Email address", maxLength = 254)
             OutlinedTextField(
@@ -478,11 +477,11 @@ private fun AccountSyncPanel(account: StudyAccountState, localDisplayName: Strin
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
             )
-            Text(if (createMode) "Use at least 8 characters. Firebase manages your password securely." else "Your password is handled by Firebase Authentication and is not saved in Let’sStudy.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+            Text(if (createMode) "Use at least 8 characters. Your password is protected and isn't saved in Let’sStudy." else "Your password is protected and isn't saved in Let’sStudy.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             if (createMode) {
                 Row(verticalAlignment = Alignment.Top) {
                     Checkbox(checked = consent, onCheckedChange = { consent = it }, enabled = !account.isBusy)
-                    Text("I agree to store my profile and sync study material, questions, answers, saved lessons, tutor conversations and progress to my private Firebase account. I can delete this data from Settings.", modifier = Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodySmall)
+                    Text("I agree to save my profile and sync study material, questions, answers, saved lessons, tutor conversations and progress to my private account. I can delete this data from Settings.", modifier = Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodySmall)
                 }
             }
             Button(
@@ -515,7 +514,7 @@ private fun AccountSyncPanel(account: StudyAccountState, localDisplayName: Strin
         title = { Text("Delete your account?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("This permanently deletes your Firebase account and all synced studies, answers, conversations and progress. This can't be undone.")
+                Text("This permanently deletes your account and all synced studies, answers, conversations and progress. This can't be undone.")
                 OutlinedTextField(value = deletePassword, onValueChange = { deletePassword = it.take(1024) }, modifier = Modifier.fillMaxWidth(), label = { Text("Confirm with your password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
                 account.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             }

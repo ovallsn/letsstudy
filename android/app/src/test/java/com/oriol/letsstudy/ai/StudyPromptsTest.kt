@@ -23,6 +23,9 @@ class StudyPromptsTest {
         assertTrue(prompt.contains("Spanish"))
         assertTrue(prompt.contains(source.extractedText))
         assertTrue(prompt.contains("sourceContext"))
+        assertTrue(prompt.contains("From the listing:"))
+        assertTrue(prompt.contains("General practice:"))
+        assertTrue(prompt.contains("not a confirmed requirement or interview question"))
     }
 
     @Test
@@ -42,6 +45,10 @@ class StudyPromptsTest {
         assertFalse(prompt.contains("exactly 15"))
         assertTrue(prompt.contains("four plausible distinct options"))
         assertTrue(prompt.contains("Bitcoin"))
+        assertTrue(prompt.contains("From the listing:"))
+        assertTrue(prompt.contains("General practice:"))
+        assertTrue(prompt.contains("Source facts (untrusted listing text)"))
+        assertTrue(prompt.contains("never treat summaries, requirements, or model-generated study notes as listing evidence"))
     }
 
     @Test

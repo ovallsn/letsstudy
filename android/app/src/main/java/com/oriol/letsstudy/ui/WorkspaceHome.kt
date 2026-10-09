@@ -93,7 +93,7 @@ fun WorkspaceHome(state: LetsStudyUiState, onMenu: () -> Unit, onTopic: (String)
                 HomeQuickAction(Modifier.weight(1f), "Study a topic", Icons.Outlined.AutoAwesome, { onTopic(topic.trim()) })
             }
         }
-        item { WorkspaceAction("Find my language level", "A free 20-question estimate before you choose a study path", Icons.Outlined.Translate, onLevelCheck) }
+        item { WorkspaceAction("Find a language starting point", "A short check to help choose what to study next", Icons.Outlined.Translate, onLevelCheck) }
         val dueCount = state.allQuestions.count { it.isDueForReview() }
         if (dueCount > 0) item { WorkspaceAction("Review due · $dueCount", "Bring key ideas back at the right time", Icons.Outlined.Replay, onReviewDue) }
         val latest = state.sessions.maxByOrNull { maxOf(it.lastOpenedAt, it.createdAt) }
@@ -151,25 +151,28 @@ fun WorkspaceTopicSetup(state: LetsStudyUiState, initialTopic: String, materialM
         if (materialMode) item {
             WorkspaceCard {
                 OutlinedButton({ picker.launch(arrayOf("application/pdf", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "text/plain")) }, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.UploadFile, null); Spacer(Modifier.width(8.dp)); Text("Choose a document") }
-                Text("PDF, PPTX or TXT · up to 10 MB and 100 pages/slides. Scanned PDF OCR runs on your phone for up to 30 Latin-script pages; Thai-script scans are not supported yet.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("PDF, presentation or text · up to 10 MB and 100 pages or slides. Scanned PDFs support printed Latin text on up to 30 pages.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 state.importedMaterial?.let { imported ->
                     Text(imported.name, fontWeight = FontWeight.Bold)
                     Text("${imported.text.length} characters ready · preview", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Primary)
                     Text(imported.text.take(900), style = MaterialTheme.typography.bodySmall)
-                    Text("Extracted text is limited to the first 18,000 characters. Online mode sends this text to Google; the original file stays on your phone.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                    Text("Only the first 18,000 characters are included. Check the preview before building your study path.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 }
             }
         }
         item {
             WorkspaceCard {
                 WorkspaceField(topic, { topic = it }, if (materialMode) "What is this material about?" else "What do you want to learn?", maxLength = 500)
+                if (!materialMode) {
+                    Text("For changing laws or policies, add a recent source you trust so your study follows it.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                }
                 WorkspaceField(goal, { goal = it }, "Your goal (optional)", maxLength = 1000)
                 WorkspaceSelect("Your starting point", level, listOf("Pre-A1", "A1", "A2", "B1", "B2", "C1", "Beginner", "Some experience", "Advanced", "Assess me")) { level = it }
                 if (level in listOf("Pre-A1", "A1", "A2", "B1", "B2", "C1")) Text("This is an approximate written-language estimate, not a certified level.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 WorkspaceSelect("Study pace", intensity, listOf("Quick · 10 min", "Balanced", "Intensive · 40 min")) { intensity = it }
                 WorkspaceField(target, { target = it }, "Target date or milestone (optional)", maxLength = 200)
                 WorkspaceField(language, { language = it }, "Study language", maxLength = 80)
-                WorkspaceSelect("Generation", if (mode == "ONLINE") "Fast online" else "On-device", listOf("Fast online", "On-device")) { mode = if (it == "Fast online") "ONLINE" else "OFFLINE" }
+                WorkspaceGenerationModeSelector(mode) { mode = it }
                 Button({ onCreate(StudySetup(topic.trim(), goal.trim(), level, intensity, target.trim(), language.trim(), mode,
                     if (materialMode) "MATERIAL" else initialKind, if (materialMode) state.importedMaterial?.text.orEmpty() else "", if (materialMode) state.importedMaterial?.name.orEmpty() else "")) },
                     Modifier.fillMaxWidth(), enabled = topic.trim().length >= 3 && language.isNotBlank() && (!materialMode || state.importedMaterial != null) && !state.workspaceBusy) { Text("Build my learning path") }
@@ -185,16 +188,17 @@ fun WorkspaceJobPreparation(state: LetsStudyUiState, onMenu: () -> Unit, onAnaly
     var language by rememberSaveable { mutableStateOf(state.settings.language) }
     var mode by rememberSaveable { mutableStateOf(state.settings.mode) }
     WorkspacePage("Job preparation", onMenu) {
-        item { WorkspaceTitle("Your next interview.\nYour best prepared self.", "Practice what the role asks of you, with clear explanations along the way.") }
+        item { WorkspaceTitle("Prepare for your next interview.", "Turn the role into practical questions, and learn why each answer works.") }
         item {
             WorkspaceCard {
                 WorkspaceSelect("Start with", if (kind == SourceKind.URL) "Job link" else "Paste description", listOf("Job link", "Paste description")) { kind = if (it == "Job link") SourceKind.URL else SourceKind.TEXT }
                 WorkspaceField(source, { source = it }, if (kind == SourceKind.URL) "Public HTTPS job URL" else "Full job description", if (kind == SourceKind.TEXT) 5 else 1, 18000)
-                Text("Some listings, including LinkedIn, require sign-in or block reading. Paste the description if that happens.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("If a listing requires sign-in or can't be read, paste its description instead.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 WorkspaceField(language, { language = it }, "Question language", maxLength = 80)
-                WorkspaceSelect("Generation", if (mode == "ONLINE") "Fast online" else "On-device", listOf("Fast online", "On-device")) { mode = if (it == "Fast online") "ONLINE" else "OFFLINE" }
+                WorkspaceGenerationModeSelector(mode) { mode = it }
                 Button({ onAnalyze(StudyInput(kind, source.trim()), language.trim(), mode) }, Modifier.fillMaxWidth(), enabled = !state.isAnalyzing && language.isNotBlank() && if (kind == SourceKind.URL) source.startsWith("https://") else source.trim().length >= 100) { Text("Build my first 15 questions") }
-                Text("15 practical multiple-choice questions · four options · explanations", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("15 practical multiple-choice questions, with four options and clear explanations.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("These are focused practice prompts, not a guarantee of the exact questions an interviewer will ask.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
     }

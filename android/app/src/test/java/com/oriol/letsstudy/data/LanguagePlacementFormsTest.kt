@@ -7,6 +7,14 @@ import org.junit.Test
 
 class LanguagePlacementFormsTest {
     @Test
+    fun spanishAlternateFormUsesACompleteA1Sentence() {
+        val question = LanguagePlacementTest.questions("Spanish", 1).first { it.prompt.startsWith("Tú ") }
+
+        assertEquals("Tú ___ una hermana.", question.prompt)
+        assertEquals("tienes", question.options[question.answerIndex].lowercase())
+    }
+
+    @Test
     fun alternateFormHasTwentyNewQuestionsForEverySupportedLanguage() {
         LanguagePlacementTest.languages.forEach { language ->
             val original = LanguagePlacementTest.questions(language, 0)
