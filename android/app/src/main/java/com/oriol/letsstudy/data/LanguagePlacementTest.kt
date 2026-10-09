@@ -23,8 +23,17 @@ data class LanguagePlacementResult(
 
 fun StudyPlacementAttemptEntity.answers(): List<Int> = answersCsv.split(',').mapNotNull(String::toIntOrNull)
 
-fun StudyPlacementAttemptEntity.toPlacementResult(): LanguagePlacementResult =
-    LanguagePlacementTest.result(language, answers(), bankVersion)
+fun StudyPlacementAttemptEntity.toPlacementResult(): LanguagePlacementResult {
+    val calculated = LanguagePlacementTest.result(language, answers(), bankVersion)
+    return calculated.copy(
+        level = level,
+        estimatedRange = estimatedRange,
+        startingLevel = startingLevel,
+        correct = correct,
+        total = total,
+        nextFocus = nextFocus,
+    )
+}
 
 object LanguagePlacementTest {
     val languages = listOf("English", "Spanish", "French", "Thai")
@@ -221,26 +230,25 @@ object LanguagePlacementTest {
         val scores = bands.map { band ->
             LanguagePlacementBandScore(band, questions.zip(selectedAnswers).count { (question, selected) -> question.band == band && question.answerIndex == selected })
         }
-        val firstUnpassedIndex = scores.indexOfFirst { it.correct < 3 }
-        val foundationIndex = if (firstUnpassedIndex < 0) scores.lastIndex else firstUnpassedIndex - 1
-        val level = scores.getOrNull(foundationIndex)?.band ?: "Pre-A1"
-        val frontier = scores.getOrNull(foundationIndex + 1)
-        val transitionBand = frontier?.takeIf { it.correct >= 2 }
-        val startingLevel = transitionBand?.band ?: level
-        val estimatedRange = when {
-            foundationIndex < 0 && transitionBand != null -> "Pre-A1–A1"
-            foundationIndex < 0 -> "Pre-A1"
-            foundationIndex == scores.lastIndex -> "C1+"
-            transitionBand != null -> "$level–${transitionBand.band}"
-            else -> level
-        }
-        val next = scores.firstOrNull { it.correct < 3 }?.band ?: "C2"
-        val focus = when (next) {
-            "C2" -> "C1 advanced reading and precision"
+        val correct = scores.sumOf { it.correct }
+        val strongestBandIndex = scores.indexOfLast { it.correct >= 3 }
+        val supportedBandIndex = scores.indexOfLast { it.correct >= 2 }
+        val scoreBandIndex = if (correct < 3) -1 else ((correct - 1) / 4).coerceAtMost(bands.lastIndex)
+        val overallScoreCanRaiseEstimate = correct >= 12 && supportedBandIndex >= 0
+        val estimatedBandIndex = maxOf(
+            strongestBandIndex,
+            if (overallScoreCanRaiseEstimate) minOf(scoreBandIndex, supportedBandIndex) else -1,
+        )
+        val level = bands.getOrNull(estimatedBandIndex) ?: "Pre-A1"
+        val frontier = scores.getOrNull(estimatedBandIndex + 1)?.takeIf { it.correct >= 2 }
+        val estimatedRange = if (frontier == null) level else "$level–${frontier.band}"
+        val startingLevel = level
+        val focus = when (level) {
             "Pre-A1" -> "A1 everyday words and sentence patterns"
-            else -> "$next vocabulary, grammar and reading"
+            "C1" -> "C1 advanced reading and precision"
+            else -> "$level vocabulary, grammar and reading"
         }
-        return LanguagePlacementResult(language, level, estimatedRange, startingLevel, scores.sumOf { it.correct }, questions.size, scores, focus)
+        return LanguagePlacementResult(language, level, estimatedRange, startingLevel, correct, questions.size, scores, focus)
     }
 
     private fun item(band: String, prompt: String, answerIndex: Int, explanation: String, vararg options: String) =

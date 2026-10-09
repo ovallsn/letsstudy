@@ -83,13 +83,17 @@ class StudyLeaderboardRepository(
         val nickname = safeDisplayName(displayName)
         val settings = settingsReference(uid).get().await()
         val entryId = settings.getString("entryId")?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString()
+        val weekKey = currentWeekKey()
+        val existingEntry = publicReference(entryId).get().await()
+        val previousScore = existingEntry.getLong("weeklyPoints")?.toInt()
+            ?.takeIf { existingEntry.getString("weekKey") == weekKey } ?: 0
         saveEnrollment(
             uid,
             LeaderboardEnrollment(
                 entryId = entryId,
                 displayName = nickname,
-                weeklyPoints = weeklyPoints.coerceIn(0, MAX_WEEKLY_POINTS),
-                weekKey = currentWeekKey(),
+                weeklyPoints = maxOf(weeklyPoints.coerceIn(0, MAX_WEEKLY_POINTS), previousScore),
+                weekKey = weekKey,
                 photoShared = avatarThumbnail != null,
                 avatarThumbnail = avatarThumbnail,
             ),
@@ -102,9 +106,11 @@ class StudyLeaderboardRepository(
         if (settings.getBoolean("enabled") != true) return
         val entryId = settings.getString("entryId")?.takeIf(String::isNotBlank) ?: return
         val nickname = settings.getString("displayName")?.takeIf { UsernamePolicy.isAllowed(it) } ?: return
-        val score = weeklyPoints.coerceIn(0, MAX_WEEKLY_POINTS)
         val weekKey = currentWeekKey()
         val publicEntry = publicReference(entryId).get().await()
+        val previousScore = publicEntry.getLong("weeklyPoints")?.toInt()
+            ?.takeIf { publicEntry.getString("weekKey") == weekKey } ?: 0
+        val score = maxOf(weeklyPoints.coerceIn(0, MAX_WEEKLY_POINTS), previousScore)
         val avatarThumbnail = publicEntry.getBlob("avatarThumb")?.toBytes()
         val photoShared = settings.getBoolean("sharePhoto") == true && avatarThumbnail != null
         if (publicEntry.getString("displayName") == nickname
@@ -125,14 +131,20 @@ class StudyLeaderboardRepository(
             ?: throw IllegalStateException("Choose a valid board username before sharing a profile photo.")
         if (enabled && avatarThumbnail == null) throw IllegalStateException("Choose a profile photo in Settings before sharing it.")
         val current = publicReference(entryId).get().await()
+        val weekKey = currentWeekKey()
+        val currentScore = current.getLong("weeklyPoints")?.toInt()?.coerceIn(0, MAX_WEEKLY_POINTS) ?: 0
+        val score = if (current.getString("weekKey") == weekKey) {
+            maxOf(currentScore, weeklyPoints.coerceIn(0, MAX_WEEKLY_POINTS))
+        } else {
+            weeklyPoints.coerceIn(0, MAX_WEEKLY_POINTS)
+        }
         saveEnrollment(
             uid,
             LeaderboardEnrollment(
                 entryId = entryId,
                 displayName = nickname,
-                weeklyPoints = current.getLong("weeklyPoints")?.toInt()?.coerceIn(0, MAX_WEEKLY_POINTS)
-                    ?: weeklyPoints.coerceIn(0, MAX_WEEKLY_POINTS),
-                weekKey = current.getString("weekKey")?.takeIf(String::isNotBlank) ?: currentWeekKey(),
+                weeklyPoints = score,
+                weekKey = weekKey,
                 photoShared = enabled,
                 avatarThumbnail = avatarThumbnail.takeIf { enabled },
             ),

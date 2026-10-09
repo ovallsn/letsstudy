@@ -164,14 +164,12 @@ fun WorkspaceProgress(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                WorkspaceCard(Modifier.weight(1f).fillMaxHeight()) {
-                    Text("Answered", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Muted)
-                    Text("${answered.size}", style = MaterialTheme.typography.headlineMedium)
-                }
-                WorkspaceCard(Modifier.weight(1f).fillMaxHeight()) {
-                    Text("Mastered answers", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Muted)
-                    Text(if (scored.isEmpty()) "—" else "${100 * correct / scored.size}%", style = MaterialTheme.typography.headlineMedium)
-                }
+                ProgressMetricCard("Answered", "${answered.size}", Modifier.weight(1f))
+                ProgressMetricCard(
+                    "Mastered answers",
+                    if (scored.isEmpty()) "—" else "${100 * correct / scored.size}%",
+                    Modifier.weight(1f),
+                )
             }
             Text("Mastered means a correct objective answer, a ‘Know it’ rating or AI feedback of 80+.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 8.dp))
         }
@@ -215,6 +213,16 @@ fun WorkspaceProgress(
             item { Text("Worth another look", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             items(weak.take(8), key = { it.id }) { q -> WorkspaceAction(q.topic, q.prompt.take(140), Icons.Outlined.Replay) { onOpenQuestion(q) } }
         } else item { WorkspaceEmpty(if (answered.isEmpty()) "Your progress is waiting" else "Keep exploring", if (answered.isEmpty()) "Answer a question to start seeing your learning here." else "Try a fresh round or revisit a saved question.") }
+    }
+}
+
+@Composable
+private fun ProgressMetricCard(label: String, value: String, modifier: Modifier = Modifier) {
+    WorkspaceCard(modifier.fillMaxHeight()) {
+        Box(Modifier.fillMaxWidth().heightIn(min = 40.dp), contentAlignment = Alignment.TopStart) {
+            Text(label, style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Muted)
+        }
+        Text(value, style = MaterialTheme.typography.headlineMedium)
     }
 }
 

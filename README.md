@@ -9,7 +9,7 @@ Let’sStudy is a native Android study app for preparing with purpose. It turns 
 ## A workspace built for learning
 
 - **Interview preparation:** public job URLs or pasted descriptions, domain-specific questions, mock interview rounds, typed answers and optional Android dictation.
-- **Learn beyond interviews:** build a path for any topic or language with a goal, starting level, pace, target date and ordered modules. An original 20-question check estimates a written-language range for English, Spanish, French or Thai, then pre-fills a tailored study path. The estimate considers the pattern across difficulty bands, not just the total correct; it offers a flexible starting point rather than a pass/fail label. Results and answer review are saved. The check is not a certified or official CEFR/EF SET score.
+- **Learn beyond interviews:** build a path for any topic or language with a goal, starting level, pace, target date and ordered modules. An original 20-question check estimates a written-language starting point for English, Spanish, French or Thai, then pre-fills a tailored study path. It considers the whole score and results across five difficulty bands, so one weaker band does not automatically cap stronger evidence. The result shows the correct-answer count, band breakdown and answer review. It is an adjustable study recommendation, not a pass/fail verdict or certified CEFR/EF SET score.
 - **Bring study material:** import text PDFs, PPTX presentations or TXT files and preview their extracted text. Limits: 10 MB, 100 pages/slides and the first 18,000 characters. Scanned PDFs can use on-device OCR for up to 30 Latin-script pages; Thai-script scans are not supported yet.
 - **Nine practice formats:** multiple choice, true/false, open answers, fill-in-the-blank, flashcards, scenarios, interview answers, code/commands and vocabulary. Code is studied as text and never executed.
 - **Understand the answer:** immediate explanations, reference answers, saved deeper lessons and a contextual AI tutor. Objective answers and recall ratings are scored locally; written feedback is an explicit AI request.
@@ -49,7 +49,7 @@ Screenshots show the current native Android interface with fictional study conte
 
 ### Language placement check
 
-The check uses two original question forms per language. Results and answer review are saved in Progress. Language paths include an explanation, example and common mistake for each module, and learners can take a fresh progress check from that path. The path advances one level at a time based on the check; each new level creates a new path while keeping earlier study sessions intact.
+The check uses two original question forms per language. Results, correct-answer counts, band breakdowns and answer review are saved in Progress. The recommended starting band combines the overall score with stronger evidence at individual bands; a single weak band does not automatically cap the recommendation. Higher bands can still reveal mixed strengths, which the result displays instead of turning into a pass/fail label. Language paths include an explanation, example and common mistake for each module, and learners can take a fresh progress check from that path. The path advances one level at a time based on the check; each new level creates a new path while keeping earlier study sessions intact.
 
 Learners can keep an illustrated profile avatar or choose a personal photo. The full photo stays in app-private storage on that phone and is not included in account sync. A learner may separately opt in to share a small thumbnail on the community board; turning that option off removes the board copy. Illustrated avatars remain available for cross-device sync without Firebase Storage.
 
@@ -97,7 +97,7 @@ A topic/document plan makes one request. An online round makes one for 15 questi
 - LiteRT-LM and Gemma 4 E2B for optional on-device question generation.
 - WorkManager and resumable, checksum-verified model download support.
 - Google ML Kit Text Recognition v2 for bundled, on-device OCR of Latin-script scanned PDFs; this increases app size and does not recognize Thai script.
-- Jsoup and a bounded HTTPS reader for public job pages.
+- Jsoup and a bounded HTTPS reader for public job pages, including Schema.org JSON-LD and microdata listings.
 - PDFBox Android for text PDF extraction and bounded XML parsing for PPTX.
 - DM Sans and Manrope under the SIL Open Font License.
 
@@ -117,7 +117,7 @@ The main app lives in `android/`. Architecture notes are in [`docs/architecture.
 3. Place that file at `android/app/google-services.json`. It is intentionally ignored by Git; each developer supplies their own Firebase configuration.
 4. In **Authentication → Sign-in method**, enable **Email/Password**. It is enabled in the original `letsstudy-3fc1d` project. Learners can still study without creating an account.
 5. Create a **Cloud Firestore** database in production mode. The original `letsstudy-3fc1d` project uses `asia-southeast3` (Bangkok); Firestore's database location cannot be changed after creation. For another project, select the region where most early learners are located. Keep the project on Firebase’s Spark plan unless the maintainer chooses to add billing.
-6. Publish the current access policy from [`firestore.rules`](firestore.rules) in **Firestore Database → Rules**. It keeps profiles and study records private to their owner and adds the explicitly opted-in board projection. The original `letsstudy-3fc1d` project needs this version before the updated account/board flows work; updating this repository does not change Firebase Console rules.
+6. Publish the current access policy from [`firestore.rules`](firestore.rules) in **Firestore Database → Rules**. It keeps profiles and study records private to their owner, ties each board account to one active public entry, caps board queries at 25 rows and blocks same-week score decreases. The explicitly opted-in board still uses client-calculated points, so it is not a verified competition. Updating this repository does not change Firebase Console rules; publish the file to activate these safeguards in a Firebase project.
 7. Create the composite index listed in [`firestore.indexes.json`](firestore.indexes.json) in **Firestore Database → Indexes**. It orders the current week's board by points. Firebase may also display a link to create this index after the first board query.
 8. Configure Firebase App Check. For a local debug build, use the debug provider and register the token printed in Logcat under **Firebase Console → App Check → Apps → Manage debug tokens**. Keep the token private and out of source control. For a distributed release, configure Play Integrity and the release signing certificate.
 
