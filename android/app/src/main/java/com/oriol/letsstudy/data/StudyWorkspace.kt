@@ -6,6 +6,7 @@ import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import com.oriol.letsstudy.ai.InvalidStudyOutputException
 import com.oriol.letsstudy.ai.StudyOutputParser
+import java.util.Locale
 import java.util.UUID
 
 enum class PracticeFormat(val label: String) {
@@ -35,10 +36,24 @@ data class LearnerSettings(
 )
 
 object LearnerAvatarIds {
-    const val DEFAULT = "sprout"
+    const val DEFAULT = "initials"
     val all = setOf(DEFAULT, "book", "spark", "paw", "globe", "star")
 
-    fun safe(value: String?) = value?.takeIf(all::contains) ?: DEFAULT
+    fun safe(value: String?) = when {
+        value == "sprout" -> DEFAULT
+        value?.takeIf(all::contains) != null -> value
+        else -> DEFAULT
+    }
+
+    fun initials(displayName: String): String {
+        val words = displayName.trim().split(Regex("[\\s_-]+")).filter(String::isNotBlank)
+        val letters = when {
+            words.size >= 2 -> listOf(words.first(), words.last()).mapNotNull { word -> word.firstOrNull(Char::isLetterOrDigit) }
+            words.isNotEmpty() -> words.first().filter(Char::isLetterOrDigit).take(2).toList()
+            else -> emptyList()
+        }
+        return letters.joinToString("").uppercase(Locale.ROOT).ifBlank { "LS" }
+    }
 }
 
 fun StudySessionEntity.modules(): List<LearningModule> = runCatching {

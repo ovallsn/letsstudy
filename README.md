@@ -19,7 +19,7 @@ Let’sStudy is a native Android study app for preparing with purpose. It turns 
 - **Keep placement results:** completed language checks save the score, estimated range and selected answers. The latest result and earlier attempts are available from Progress; signed-in learners can sync them with their private study data.
 - **Study together if you choose:** an optional weekly community board publishes a chosen community username and a capped, self-reported score after separate consent. A profile photo is shared only when the learner explicitly enables photo sharing; the board stores a 96 × 96 JPEG thumbnail capped at 12 KiB. Names follow a restricted format and a basic inappropriate/reserved-name filter. Email, profile display name, study topics and answers stay private.
 - **Sync when you choose:** study as a guest, or create an optional account to sync your private study library across Android devices.
-- **Make it personal:** choose a display name, a unique username, one of six original illustrated avatars, or a personal photo. The app and Firestore both reject configured offensive terms, common number substitutions and reserved names; this is a basic filter, not a guarantee against every offensive variant. The full photo stays in app-private storage on this phone; only the small board thumbnail is uploaded after separate consent. Turning photo sharing off or leaving the board removes that thumbnail. Set a default study language and optional daily reminders or weekly summaries.
+- **Make it personal:** choose a display name, a unique username, a dark initials avatar, one of five original illustrated avatars, or a personal photo. The app and Firestore both reject configured offensive terms, common number substitutions and reserved names; this is a basic filter, not a guarantee against every offensive variant. The full photo stays in app-private storage on this phone; only the small board thumbnail is uploaded after separate consent. Turning photo sharing off or leaving the board removes that thumbnail. Set a default study language and optional daily reminders or weekly summaries.
 
 The interface is built for portrait Android use with native Compose controls, shared visual components and readable scrolling screens.
 
@@ -37,27 +37,27 @@ The interface is built for portrait Android use with native Compose controls, sh
 
 Screenshots show the current native Android interface with fictional study content captured in an isolated emulator. Sample sessions and learner data are not included in production builds.
 
-| Home | Choose a study path | Job preparation | Interview learning path | Topic learning path |
-| --- | --- | --- | --- | --- |
-| <img src="docs/screenshots/home.png" alt="Home with interview and topic study entry points" width="150"> | <img src="docs/screenshots/study-options.png" alt="Start a topic, job interview or material-based study" width="150"> | <img src="docs/screenshots/job-preparation.png" alt="Set the question language and generation mode for interview practice" width="150"> | <img src="docs/screenshots/study-path.png" alt="Interview learning path about Bitcoin mining support" width="150"> | <img src="docs/screenshots/topic-path.png" alt="Topic learning path about how EU law is made" width="150"> |
+| Home | Choose a study path | Job preparation |
+| --- | --- | --- |
+| <img src="docs/screenshots/home.png" alt="Home for interview preparation, topic study and language placement" width="165"> | <img src="docs/screenshots/study-options.png" alt="Choose interview, topic or material-based study" width="165"> | <img src="docs/screenshots/job-preparation.png" alt="Set up interview practice from a public job URL or pasted description" width="165"> |
 
-| Multiple-choice practice | Understand the concept | Study library | Import material |
-| --- | --- | --- | --- |
-| <img src="docs/screenshots/question.png" alt="Four-option multiple-choice question about ASIC miners" width="165"> | <img src="docs/screenshots/explanation.png" alt="Detailed ASIC explanation, how it works and a practical example" width="165"> | <img src="docs/screenshots/library.png" alt="Searchable library with job and topic study paths" width="165"> | <img src="docs/screenshots/material-import.png" alt="Import a PDF, presentation or text file to create a study path" width="165"> |
+| Study library | Import material | Progress |
+| --- | --- | --- |
+| <img src="docs/screenshots/library.png" alt="Browse saved study paths and questions" width="165"> | <img src="docs/screenshots/material-import.png" alt="Preview text extracted from a local networking study file" width="165"> | <img src="docs/screenshots/progress.png" alt="Review a saved language estimate and study progress" width="165"> |
 
-| Study tutor | Saved questions | Learning progress | Optional profile and sync |
-| --- | --- | --- | --- |
-| <img src="docs/screenshots/tutor.png" alt="Contextual study tutor conversation about ASIC miners" width="165"> | <img src="docs/screenshots/saved.png" alt="Saved questions ready to practise again" width="165"> | <img src="docs/screenshots/progress.png" alt="Study streak, answer mastery and topic strengths" width="165"> | <img src="docs/screenshots/profile-sync.png" alt="Optional private profile and consent for account sync" width="165"> |
+| Profile and sync | Community board | Study reminders |
+| --- | --- | --- |
+| <img src="docs/screenshots/profile-sync.png" alt="Manage account sync, display name, initials and profile pictures" width="165"> | <img src="docs/screenshots/community-board.png" alt="Optional community board with a clear sharing and privacy explanation" width="165"> | <img src="docs/screenshots/notifications.png" alt="Manage study reminders and due reviews" width="165"> |
 
 ### Language placement check
 
 The check uses two original question forms per language. Results, correct-answer counts, band breakdowns and answer review are saved in Progress. The recommended starting band combines the overall score with stronger evidence at individual bands; a single weak band does not automatically cap the recommendation. Higher bands can still reveal mixed strengths, which the result displays instead of turning into a pass/fail label. Language paths include an explanation, example and common mistake for each module, and learners can take a fresh progress check from that path. The path advances one level at a time based on the check; each new level creates a new path while keeping earlier study sessions intact.
 
-Learners can keep an illustrated profile avatar or choose a personal photo. The full photo stays in app-private storage on that phone and is not included in account sync. A learner may separately opt in to share a small thumbnail on the community board; turning that option off removes the board copy. Illustrated avatars remain available for cross-device sync without Firebase Storage.
+Learners can use their initials, choose an illustrated profile avatar, or select a personal photo. The full photo stays in app-private storage on that phone and is not included in account sync. A learner may separately opt in to share a small thumbnail on the community board; turning that option off removes the board copy. Initials and illustrated avatars remain available for cross-device sync without Firebase Storage.
 
 The placement bank is authored for Let’sStudy; it does not reproduce edX, EF SET or other exam questions.
 
-<img src="docs/screenshots/language-check.png" alt="Original 20-question language placement check in the Let’sStudy Android app" width="260">
+<img src="docs/screenshots/language-check.png" alt="Language placement result with an approximate C1 study recommendation and band breakdown" width="260">
 
 ## AI modes and limits
 
@@ -141,6 +141,8 @@ Run `./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleRelease` f
 GitHub Actions runs Android unit tests, Android lint, and an unsigned release build, plus Firestore Security Rules tests in the local Firebase emulator, for changes to `main` and pull requests. The emulator tests check owner-only study access, verify that an `admin` claim alone grants no access, and exercise username reservation rules. They never connect to the live Firebase project. The Android workflow creates a temporary placeholder Firebase file for compilation and removes it afterward. Local debug builds still need the developer's own `google-services.json`.
 
 The automated release build is unsigned and is not an installable public release. A distributable APK needs a maintainer-controlled signing key that is backed up securely, the real Firebase Android configuration, and release App Check configured for the signing certificate. Keep the key and Firebase configuration out of the repository. See [`docs/release.md`](docs/release.md) for the optional signed-build workflow and required repository secrets. It creates a short-lived Actions artifact only; it does not create a GitHub Release or use paid Firebase services.
+
+See [`docs/launch-readiness.md`](docs/launch-readiness.md) for the emulator audit, verified and unverified flows, launch blockers, and the hosted-AI provider review.
 
 ## License
 

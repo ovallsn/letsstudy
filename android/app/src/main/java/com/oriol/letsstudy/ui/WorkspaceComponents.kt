@@ -12,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
-import androidx.compose.material.icons.outlined.Eco
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Menu
@@ -104,7 +103,7 @@ fun WorkspaceTopBar(title: String, onMenu: () -> Unit, trailing: @Composable (()
                 Icon(Icons.Outlined.NotificationsNone, null, tint = LetsStudyColors.Muted, modifier = Modifier.size(19.dp))
             }
             HeaderActionButton(actions.onProfile, actions.learnerName.takeIf(String::isNotBlank)?.let { "Profile for $it" } ?: "Profile and settings") {
-                WorkspaceAvatar(actions.avatarId, 32.dp, photoPath = actions.photoPath)
+                WorkspaceAvatar(actions.avatarId, 32.dp, photoPath = actions.photoPath, displayName = actions.learnerName)
             }
         }
     }
@@ -113,13 +112,13 @@ fun WorkspaceTopBar(title: String, onMenu: () -> Unit, trailing: @Composable (()
 private data class StudyAvatarOption(
     val id: String,
     val label: String,
-    val icon: ImageVector,
+    val icon: ImageVector?,
     val foreground: Color,
     val background: Color,
 )
 
 private val studyAvatarOptions = listOf(
-    StudyAvatarOption("sprout", "Sprout", Icons.Outlined.Eco, LetsStudyColors.Primary, LetsStudyColors.Mint),
+    StudyAvatarOption(LearnerAvatarIds.DEFAULT, "Initials", null, Color.White, LetsStudyColors.Ink),
     StudyAvatarOption("book", "Book", Icons.AutoMirrored.Outlined.MenuBook, LetsStudyColors.Clay, LetsStudyColors.Warm),
     StudyAvatarOption("spark", "Spark", Icons.Outlined.Lightbulb, LetsStudyColors.DeepPrimary, LetsStudyColors.SoftBlue),
     StudyAvatarOption("paw", "Paw print", Icons.Outlined.Pets, LetsStudyColors.DeepPrimary, LetsStudyColors.Mint),
@@ -128,7 +127,7 @@ private val studyAvatarOptions = listOf(
 )
 
 @Composable
-fun WorkspaceAvatar(avatarId: String, size: Dp, modifier: Modifier = Modifier, photoPath: String = "") {
+fun WorkspaceAvatar(avatarId: String, size: Dp, modifier: Modifier = Modifier, photoPath: String = "", displayName: String = "") {
     val option = studyAvatarOptions.firstOrNull { it.id == avatarId } ?: studyAvatarOptions.first()
     val bitmap = remember(photoPath) {
         photoPath.takeIf(String::isNotBlank)?.let { path -> runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() }
@@ -141,16 +140,28 @@ fun WorkspaceAvatar(avatarId: String, size: Dp, modifier: Modifier = Modifier, p
     ) {
         if (bitmap != null) {
             Image(bitmap, contentDescription = "Profile photo", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+        } else if (option.id == LearnerAvatarIds.DEFAULT) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    LearnerAvatarIds.initials(displayName),
+                    color = option.foreground,
+                    fontSize = (size.value * 0.38f).sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
         } else {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(option.icon, contentDescription = null, tint = option.foreground, modifier = Modifier.size(size * 0.54f))
+            option.icon?.let { icon ->
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = option.foreground, modifier = Modifier.size(size * 0.54f))
+                }
             }
         }
     }
 }
 
 @Composable
-fun StudyAvatarPicker(selectedAvatarId: String, onSelected: (String) -> Unit) {
+fun StudyAvatarPicker(selectedAvatarId: String, onSelected: (String) -> Unit, displayName: String = "") {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Profile picture", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         studyAvatarOptions.chunked(3).forEach { row ->
@@ -169,7 +180,7 @@ fun StudyAvatarPicker(selectedAvatarId: String, onSelected: (String) -> Unit) {
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            WorkspaceAvatar(option.id, 40.dp)
+                            WorkspaceAvatar(option.id, 40.dp, displayName = displayName)
                             Text(option.label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                         }
                     }

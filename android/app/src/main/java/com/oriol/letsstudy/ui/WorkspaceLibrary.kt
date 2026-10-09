@@ -317,7 +317,7 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
                 }
                 if (settings.photoPath.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        WorkspaceAvatar(settings.avatarId, 52.dp, photoPath = settings.photoPath)
+                        WorkspaceAvatar(settings.avatarId, 52.dp, photoPath = settings.photoPath, displayName = state.account.displayName?.takeIf(String::isNotBlank) ?: settings.name)
                         Column(Modifier.weight(1f)) {
                             Text("Your photo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text("Stored privately on this phone", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
@@ -336,9 +336,10 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
                         viewModel.saveSettings(settings.copy(avatarId = avatarId, photoPath = ""))
                         if (state.account.email != null) viewModel.updateAccountAvatar(avatarId)
                     },
+                    displayName = state.account.displayName?.takeIf(String::isNotBlank) ?: settings.name,
                 )
                 Text(
-                    "Photos stay private on this phone. Illustrated avatars sync with your account.",
+                    "Photos stay private on this phone. Initials and illustrated avatars can sync with your account.",
                     style = MaterialTheme.typography.bodySmall,
                     color = LetsStudyColors.Muted,
                 )

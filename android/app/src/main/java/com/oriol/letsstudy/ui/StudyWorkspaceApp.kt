@@ -91,6 +91,7 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
     BackHandler(showTutor || state.selectedQuestion != null || destination != AppDestination.HOME) {
         when { showTutor -> showTutor = false; state.selectedQuestion != null -> viewModel.closeQuestion(); destination == AppDestination.PLACEMENT_RESULT -> destination = AppDestination.PROGRESS; destination == AppDestination.SESSION -> { viewModel.closeSession(); destination = AppDestination.LIBRARY }; else -> destination = AppDestination.HOME }
     }
+    BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
     val headerActions = WorkspaceHeaderActions(
         onLeaderboard = { navigate(AppDestination.LEADERBOARD) },
         onNotifications = { navigate(AppDestination.NOTIFICATIONS) },
@@ -100,50 +101,55 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
         photoPath = state.settings.photoPath,
     )
     ModalNavigationDrawer(drawerState = drawer, drawerContent = {
-        ModalDrawerSheet(modifier = Modifier.widthIn(max = 248.dp), drawerContainerColor = LetsStudyColors.Canvas) {
-            LazyColumn(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                item {
-                    Row(Modifier.padding(horizontal = 10.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(40.dp))
-                        Column { Text("let’sstudy", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text("A little wiser, every day.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted) }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+            ModalDrawerSheet(
+                modifier = Modifier.fillMaxHeight(if (moreExpanded) 0.8f else 0.7f).widthIn(max = 248.dp),
+                drawerContainerColor = LetsStudyColors.Canvas,
+            ) {
+                LazyColumn(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    item {
+                        Row(Modifier.padding(horizontal = 10.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(40.dp))
+                            Column { Text("let’sstudy", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text("A little wiser, every day.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted) }
+                        }
                     }
-                }
-                val mainEntries = listOf(
-                    Triple(AppDestination.HOME, "Home", Icons.Outlined.Home),
-                    Triple(AppDestination.LIBRARY, "My studies", Icons.AutoMirrored.Outlined.MenuBook),
-                    Triple(AppDestination.NEW_STUDY, "New study", Icons.Outlined.Add),
-                    Triple(AppDestination.JOBS, "Job preparation", Icons.Outlined.WorkOutline),
-                    Triple(AppDestination.PROGRESS, "Progress", Icons.AutoMirrored.Outlined.ShowChart),
-                )
-                mainEntries.forEach { (route, title, icon) -> item {
-                    NavigationDrawerItem(label = { Text(title) }, selected = destination == route, onClick = { navigate(route) }, icon = { Icon(icon, null) })
-                } }
-                item {
-                    NavigationDrawerItem(
-                        label = {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Text("More", Modifier.weight(1f))
-                                Icon(if (moreExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null)
-                            }
-                        },
-                        selected = destination in moreRoutes,
-                        onClick = { moreExpanded = !moreExpanded },
-                        icon = { Icon(Icons.Outlined.MoreHoriz, null) },
+                    val mainEntries = listOf(
+                        Triple(AppDestination.HOME, "Home", Icons.Outlined.Home),
+                        Triple(AppDestination.LIBRARY, "My studies", Icons.AutoMirrored.Outlined.MenuBook),
+                        Triple(AppDestination.NEW_STUDY, "New study", Icons.Outlined.Add),
+                        Triple(AppDestination.JOBS, "Job preparation", Icons.Outlined.WorkOutline),
+                        Triple(AppDestination.PROGRESS, "Progress", Icons.AutoMirrored.Outlined.ShowChart),
                     )
-                }
-                if (moreExpanded) {
-                    val moreEntries = listOf(
-                        Triple(AppDestination.HISTORY, "History", Icons.Outlined.History),
-                        Triple(AppDestination.SAVED, "Saved questions", Icons.Outlined.BookmarkBorder),
-                        Triple(AppDestination.REVIEW_DUE, "Review due", Icons.Outlined.Replay),
-                        Triple(AppDestination.LANGUAGE_CHECK, "Language check", Icons.Outlined.Translate),
-                        Triple(AppDestination.NOTIFICATIONS, "Notifications", Icons.Outlined.NotificationsNone),
-                        Triple(AppDestination.LEADERBOARD, "Leaderboard", Icons.Outlined.EmojiEvents),
-                        Triple(AppDestination.SETTINGS, "Settings", Icons.Outlined.Settings),
-                    )
-                    moreEntries.forEach { (route, title, icon) -> item {
+                    mainEntries.forEach { (route, title, icon) -> item {
                         NavigationDrawerItem(label = { Text(title) }, selected = destination == route, onClick = { navigate(route) }, icon = { Icon(icon, null) })
                     } }
+                    item {
+                        NavigationDrawerItem(
+                            label = {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("More", Modifier.weight(1f))
+                                    Icon(if (moreExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null)
+                                }
+                            },
+                            selected = destination in moreRoutes,
+                            onClick = { moreExpanded = !moreExpanded },
+                            icon = { Icon(Icons.Outlined.MoreHoriz, null) },
+                        )
+                    }
+                    if (moreExpanded) {
+                        val moreEntries = listOf(
+                            Triple(AppDestination.HISTORY, "History", Icons.Outlined.History),
+                            Triple(AppDestination.SAVED, "Saved questions", Icons.Outlined.BookmarkBorder),
+                            Triple(AppDestination.REVIEW_DUE, "Review due", Icons.Outlined.Replay),
+                            Triple(AppDestination.LANGUAGE_CHECK, "Language check", Icons.Outlined.Translate),
+                            Triple(AppDestination.NOTIFICATIONS, "Notifications", Icons.Outlined.NotificationsNone),
+                            Triple(AppDestination.LEADERBOARD, "Leaderboard", Icons.Outlined.EmojiEvents),
+                            Triple(AppDestination.SETTINGS, "Settings", Icons.Outlined.Settings),
+                        )
+                        moreEntries.forEach { (route, title, icon) -> item {
+                            NavigationDrawerItem(label = { Text(title) }, selected = destination == route, onClick = { navigate(route) }, icon = { Icon(icon, null) })
+                        } }
+                    }
                 }
             }
         }

@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.oriol.letsstudy.data.LearnerAvatarIds
 import com.oriol.letsstudy.data.UsernamePolicy
 
 @Composable
@@ -75,7 +76,7 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
                 Text("Use 3–20 letters, numbers or underscores. Offensive words and reserved names are not accepted.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 if (state.settings.photoPath.isNotBlank()) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        WorkspaceAvatar(state.settings.avatarId, 40.dp, photoPath = state.settings.photoPath)
+                        WorkspaceAvatar(state.settings.avatarId, 40.dp, photoPath = state.settings.photoPath, displayName = nickname)
                         Text("Show my profile photo on the board", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         Checkbox(checked = sharePhotoOnJoin, onCheckedChange = { sharePhotoOnJoin = it })
                     }
@@ -175,7 +176,7 @@ private fun LeaderboardAvatar(displayName: String, imageBytes: ByteArray?) {
             Image(image, contentDescription = "$displayName's profile photo", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         } else {
             Text(
-                leaderboardInitials(displayName),
+                LearnerAvatarIds.initials(displayName),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = LetsStudyColors.Card,
@@ -183,12 +184,3 @@ private fun LeaderboardAvatar(displayName: String, imageBytes: ByteArray?) {
         }
     }
 }
-
-private fun leaderboardInitials(displayName: String): String = displayName
-    .trim()
-    .split(Regex("[\\s_-]+"))
-    .filter(String::isNotBlank)
-    .take(2)
-    .mapNotNull { it.firstOrNull()?.uppercaseChar()?.toString() }
-    .joinToString("")
-    .ifBlank { "?" }
