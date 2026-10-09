@@ -26,6 +26,9 @@ captures/
 **/node_modules/
 **/dist/
 npm-debug.log*
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
 
 # OS/editor files
 .DS_Store

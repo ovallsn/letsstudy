@@ -19,7 +19,7 @@ Let’sStudy is a native Android study app for preparing with purpose. It turns 
 - **Keep placement results:** completed language checks save the score, estimated range and selected answers. The latest result and earlier attempts are available from Progress; signed-in learners can sync them with their private study data.
 - **Study together if you choose:** an optional weekly community board publishes a chosen community username and a capped, self-reported score after separate consent. A profile photo is shared only when the learner explicitly enables photo sharing; the board stores a 96 × 96 JPEG thumbnail capped at 12 KiB. Names follow a restricted format and a basic inappropriate/reserved-name filter. Email, profile display name, study topics and answers stay private.
 - **Sync when you choose:** study as a guest, or create an optional account to sync your private study library across Android devices.
-- **Make it personal:** choose a display name, a unique username, one of six original illustrated avatars, or a personal photo. Username rules block configured offensive terms and reserved names. The full photo stays in app-private storage on this phone; only the small board thumbnail is uploaded after separate consent. Turning photo sharing off or leaving the board removes that thumbnail. Set a default study language and optional daily reminders or weekly summaries.
+- **Make it personal:** choose a display name, a unique username, one of six original illustrated avatars, or a personal photo. The app and Firestore both reject configured offensive terms, common number substitutions and reserved names; this is a basic filter, not a guarantee against every offensive variant. The full photo stays in app-private storage on this phone; only the small board thumbnail is uploaded after separate consent. Turning photo sharing off or leaving the board removes that thumbnail. Set a default study language and optional daily reminders or weekly summaries.
 
 The interface is built for portrait Android use with native Compose controls, shared visual components and readable scrolling screens.
 
@@ -138,7 +138,9 @@ Run `./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleRelease` f
 
 ### Automated checks
 
-GitHub Actions runs unit tests, Android lint, and an unsigned release build for changes to `main` and pull requests. The workflow creates a temporary placeholder Firebase file for compilation, removes it afterward, and never connects to a live Firebase project. Local debug builds still need the developer's own `google-services.json`.
+GitHub Actions runs Android unit tests, Android lint, and an unsigned release build, plus Firestore Security Rules tests in the local Firebase emulator, for changes to `main` and pull requests. The emulator tests check owner-only study access, verify that an `admin` claim alone grants no access, and exercise username reservation rules. They never connect to the live Firebase project. The Android workflow creates a temporary placeholder Firebase file for compilation and removes it afterward. Local debug builds still need the developer's own `google-services.json`.
+
+The automated release build is unsigned and is not an installable public release. A distributable APK needs a maintainer-controlled signing key that is backed up securely, the real Firebase Android configuration, and release App Check configured for the signing certificate. Keep the key and Firebase configuration out of the repository. See [`docs/release.md`](docs/release.md) for the optional signed-build workflow and required repository secrets. It creates a short-lived Actions artifact only; it does not create a GitHub Release or use paid Firebase services.
 
 ## License
 

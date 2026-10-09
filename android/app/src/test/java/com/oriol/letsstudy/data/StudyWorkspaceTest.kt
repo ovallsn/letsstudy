@@ -57,6 +57,9 @@ class StudyWorkspaceTest {
         val path = StudyWorkspace(dao) { prompt, _ ->
             calls++
             assertTrue(prompt.substringBefore("DATA:").contains("Thai"))
+            assertTrue(prompt.contains("For changing subjects such as law, policy, health, or regulations"))
+            assertTrue(prompt.contains("without a supplied source, label it as general background and advise checking a current official source"))
+            assertTrue(prompt.contains("If material is supplied, ground lessons in it and distinguish facts from assumptions"))
             plan
         }.createPath(StudySetup("Systems", "Interview", "Beginner", "Balanced", "Next month", "Thai", "ONLINE"))
         assertEquals(1, calls)

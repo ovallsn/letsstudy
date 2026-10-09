@@ -77,3 +77,28 @@ jobs:
       - name: Remove temporary Firebase configuration
         if: always()
         run: rm -f android/app/google-services.json
+
+  firestore-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: security-tests/package-lock.json
+
+      - name: Install Firestore rules test dependencies
+        run: npm ci --prefix security-tests
+
+      - name: Test Firestore rules in the local emulator
+        run: npm run test:rules --prefix security-tests

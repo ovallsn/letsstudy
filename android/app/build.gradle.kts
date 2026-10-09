@@ -6,6 +6,17 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val releaseSigningValues = listOf(
+    "LETSTUDY_RELEASE_STORE_FILE",
+    "LETSTUDY_RELEASE_STORE_PASSWORD",
+    "LETSTUDY_RELEASE_KEY_ALIAS",
+    "LETSTUDY_RELEASE_KEY_PASSWORD",
+).map { providers.environmentVariable(it).orNull }
+val hasReleaseSigning = releaseSigningValues.any { !it.isNullOrBlank() }
+if (hasReleaseSigning && releaseSigningValues.any { it.isNullOrBlank() }) {
+    throw GradleException("All four LETSTUDY_RELEASE signing variables must be set together.")
+}
+
 android {
     namespace = "com.oriol.letsstudy"
     compileSdk = 36
@@ -18,6 +29,17 @@ android {
         versionName = "0.9.1"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(requireNotNull(releaseSigningValues[0]))
+                storePassword = requireNotNull(releaseSigningValues[1])
+                keyAlias = requireNotNull(releaseSigningValues[2])
+                keyPassword = requireNotNull(releaseSigningValues[3])
+            }
+        }
+    }
+
     buildTypes {
         debug {
             versionNameSuffix = "-debug"
@@ -25,6 +47,7 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
         }
     }
 

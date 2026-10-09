@@ -22,12 +22,22 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(userId)/leaderboard/settings;
     }
 
+    function normalizedUsername(value) {
+      return value.replace('_', '')
+        .replace('0', 'o')
+        .replace('1', 'i')
+        .replace('3', 'e')
+        .replace('4', 'a')
+        .replace('5', 's')
+        .replace('7', 't');
+    }
+
     function validUsername(value) {
       return value is string
         && value.size() >= 3
         && value.size() <= 20
         && value.matches('^[a-z0-9]+(_[a-z0-9]+)*$')
-        && !value.matches('.*(asshole|bastard|bitch|cabron|connard|cunt|fuck|fag|gilipollas|joder|maricon|merde|mierda|motherfucker|nigga|nigger|pendejo|porn|puta|putain|puto|salope|shit|slut|whore).*')
+        && !normalizedUsername(value).matches('.*(asshole|bastard|bitch|cabron|connard|cunt|fuck|fag|gilipollas|joder|maricon|merde|mierda|motherfucker|nigga|nigger|pendejo|porn|puta|putain|puto|salope|shit|slut|whore).*')
         && !value.matches('^(admin|administrator|help|letsstudy|moderator|official|root|support|system)([0-9_].*)?$');
     }
 
