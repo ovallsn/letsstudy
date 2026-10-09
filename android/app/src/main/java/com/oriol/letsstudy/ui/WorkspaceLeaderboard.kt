@@ -1,33 +1,45 @@
 package com.oriol.letsstudy.ui
 
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.oriol.letsstudy.data.UsernamePolicy
@@ -36,6 +48,7 @@ import com.oriol.letsstudy.data.UsernamePolicy
 fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel, onMenu: () -> Unit) {
     var nickname by rememberSaveable { mutableStateOf("") }
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
+    var sharePhotoOnJoin by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.account.email, state.account.profileComplete) { viewModel.refreshLeaderboard() }
     LaunchedEffect(state.account.username, state.leaderboard.nickname) {
         when {
@@ -50,7 +63,7 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
         item {
             WorkspaceCard(color = LetsStudyColors.Mint) {
                 Text("What other learners will see", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text("When you join, other learners see this username and your weekly points. Keep your Let’sStudy username or choose another one that follows the community rules. Your email, profile display name, study topics, questions and answers stay private. Joining is optional.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("The board is visible to signed-in Let’sStudy learners. Joining shares your chosen username and weekly points. Your profile photo is shared only if you turn on the photo option below. Your email, profile display name, studies and answers stay private. Joining is optional.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
         if (state.account.email == null || !state.account.profileComplete) item {
@@ -60,8 +73,17 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
                 Text("Choose the username people will see", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 WorkspaceField(nickname, { nickname = it }, "Username shown on the board", maxLength = 20)
                 Text("Use 3–20 letters, numbers or underscores. Offensive words and reserved names are not accepted.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
-                Text("This exact name and your weekly points appear on the leaderboard after you join. You can leave the board at any time.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
-                Button(onClick = { viewModel.enableLeaderboard(nickname) }, enabled = UsernamePolicy.isAllowed(nickname) && !leaderboard.isLoading, modifier = Modifier.fillMaxWidth()) {
+                if (state.settings.photoPath.isNotBlank()) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WorkspaceAvatar(state.settings.avatarId, 40.dp, photoPath = state.settings.photoPath)
+                        Text("Show my profile photo on the board", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Checkbox(checked = sharePhotoOnJoin, onCheckedChange = { sharePhotoOnJoin = it })
+                    }
+                } else {
+                    Text("You can add a profile photo in Settings and choose to share it here.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                }
+                Text("You can change photo sharing or leave the board at any time.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Button(onClick = { viewModel.enableLeaderboard(nickname, sharePhotoOnJoin) }, enabled = UsernamePolicy.isAllowed(nickname) && !leaderboard.isLoading, modifier = Modifier.fillMaxWidth()) {
                     Text("Join the community board")
                 }
             }
@@ -76,6 +98,21 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
                             Text("Refresh")
                         }
                     }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Share my profile photo", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                if (leaderboard.photoShared) "Your small photo is visible on this board." else "Only your username and weekly points are shared.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = LetsStudyColors.Muted,
+                            )
+                        }
+                        Switch(
+                            checked = leaderboard.photoShared,
+                            onCheckedChange = viewModel::setLeaderboardPhotoSharing,
+                            enabled = !leaderboard.isLoading && (state.settings.photoPath.isNotBlank() || leaderboard.photoShared),
+                        )
+                    }
                     if (leaderboard.entries.isEmpty()) WorkspaceEmpty("A fresh week", "Your points will appear here after someone joins and studies.")
                     leaderboard.entries.forEachIndexed { index, entry ->
                         val mine = entry.id == leaderboard.myEntryId
@@ -86,9 +123,14 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
                             border = BorderStroke(1.dp, if (mine) LetsStudyColors.Primary else LetsStudyColors.Border),
                         ) {
                             Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                androidx.compose.material3.Icon(Icons.Outlined.EmojiEvents, contentDescription = null, tint = LetsStudyColors.Primary)
-                                Text("${index + 1}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = LetsStudyColors.Muted)
-                                Text(entry.displayName, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = if (mine) FontWeight.Bold else FontWeight.Medium)
+                                LeaderboardAvatar(entry.displayName, entry.avatarThumbnail)
+                                Column(Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text("#${index + 1}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = LetsStudyColors.Primary)
+                                        if (index < 3) androidx.compose.material3.Icon(Icons.Outlined.EmojiEvents, contentDescription = "Top ${index + 1}", tint = LetsStudyColors.Clay, modifier = Modifier.size(15.dp))
+                                    }
+                                    Text(entry.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = if (mine) FontWeight.Bold else FontWeight.Medium)
+                                }
                                 Text("${entry.weeklyPoints} pts", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
                             }
                         }
@@ -114,8 +156,25 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
     if (confirmLeave) AlertDialog(
         onDismissRequest = { confirmLeave = false },
         title = { Text("Leave the community board?") },
-        text = { Text("Your community username and score will be removed from the public board. Your private studies and account will stay as they are.") },
+        text = { Text("Your community username, score and shared profile photo will be removed from the board. Your private studies and account will stay as they are.") },
         confirmButton = { TextButton(onClick = { viewModel.disableLeaderboard(); confirmLeave = false }) { Text("Leave board") } },
         dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Stay") } },
     )
+}
+
+@Composable
+private fun LeaderboardAvatar(displayName: String, imageBytes: ByteArray?) {
+    val image = remember(imageBytes) {
+        imageBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
+    }
+    Box(
+        Modifier.size(42.dp).clip(CircleShape).background(LetsStudyColors.Mint),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (image != null) {
+            Image(image, contentDescription = "$displayName's profile photo", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else {
+            Text(displayName.take(1).uppercase(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = LetsStudyColors.Primary)
+        }
+    }
 }

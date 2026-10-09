@@ -18,6 +18,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/leaderboardOwners/$(entryId);
     }
 
+    function leaderboardSettingsPath(userId) {
+      return /databases/$(database)/documents/users/$(userId)/leaderboard/settings;
+    }
+
     function validUsername(value) {
       return value is string
         && value.size() >= 3
@@ -42,25 +46,54 @@ service cloud.firestore {
     }
 
     function validLeaderboardSettings(settings) {
-      return settings.keys().hasOnly(['enabled', 'entryId', 'displayName', 'updatedAt'])
+      return settings.keys().hasOnly(['enabled', 'entryId', 'displayName', 'updatedAt', 'sharePhoto'])
         && settings.keys().hasAll(['enabled', 'entryId', 'displayName', 'updatedAt'])
         && settings.enabled == true
         && settings.entryId is string
         && settings.entryId.size() >= 20
         && settings.entryId.size() <= 40
         && validLeaderboardNickname(settings.displayName)
-        && settings.updatedAt is timestamp;
+        && settings.updatedAt is timestamp
+        && (!('sharePhoto' in settings) || settings.sharePhoto is bool);
     }
 
     function validPublicLeaderboardEntry(entry) {
-      return entry.keys().hasOnly(['displayName', 'weeklyPoints', 'weekKey'])
+      return entry.keys().hasOnly(['displayName', 'weeklyPoints', 'weekKey', 'avatarThumb'])
         && entry.keys().hasAll(['displayName', 'weeklyPoints', 'weekKey'])
         && validLeaderboardNickname(entry.displayName)
         && entry.weeklyPoints is int
         && entry.weeklyPoints >= 0
         && entry.weeklyPoints <= 500
         && entry.weekKey is string
-        && entry.weekKey.matches('^[0-9]{4}-W[0-9]{2}$');
+        && entry.weekKey.matches('^[0-9]{4}-W[0-9]{2}$')
+        && (!('avatarThumb' in entry)
+          || (entry.avatarThumb is bytes
+            && entry.avatarThumb.size() <= 12288));
+    }
+
+    function settingsHaveLinkedOwner(entryId, userId, displayName) {
+      let owner = getAfter(leaderboardOwnerPath(entryId)).data;
+      return owner.ownerUid == userId
+        && owner.entryId == entryId
+        && owner.displayName == displayName;
+    }
+
+    function settingsAreActiveFor(entryId, userId) {
+      let settings = getAfter(leaderboardSettingsPath(userId)).data;
+      return settings.enabled == true && settings.entryId == entryId;
+    }
+
+    function publicEntryHasActiveOwner(entryId, entry, userId) {
+      let owner = getAfter(leaderboardOwnerPath(entryId)).data;
+      let settings = getAfter(leaderboardSettingsPath(userId)).data;
+      return owner.ownerUid == userId
+        && owner.entryId == entryId
+        && owner.displayName == entry.displayName
+        && owner.weekKey == entry.weekKey
+        && settings.enabled == true
+        && settings.entryId == entryId
+        && settings.displayName == entry.displayName
+        && (!('avatarThumb' in entry) || settings.sharePhoto == true);
     }
 
     function validAccountProfile(profile) {
@@ -81,12 +114,15 @@ service cloud.firestore {
     match /users/{userId}/leaderboard/{settingsId} {
       allow get: if signedInAs(userId) && settingsId == 'settings';
       allow list: if false;
-      allow create, update: if signedInAs(userId)
+      allow create: if signedInAs(userId)
         && settingsId == 'settings'
         && validLeaderboardSettings(request.resource.data)
-        && existsAfter(leaderboardOwnerPath(request.resource.data.entryId))
-        && getAfter(leaderboardOwnerPath(request.resource.data.entryId)).data.ownerUid == userId
-        && getAfter(leaderboardOwnerPath(request.resource.data.entryId)).data.displayName == request.resource.data.displayName;
+        && settingsHaveLinkedOwner(request.resource.data.entryId, userId, request.resource.data.displayName);
+      allow update: if signedInAs(userId)
+        && settingsId == 'settings'
+        && request.resource.data.entryId == resource.data.entryId
+        && validLeaderboardSettings(request.resource.data)
+        && settingsHaveLinkedOwner(request.resource.data.entryId, userId, request.resource.data.displayName);
       allow delete: if signedInAs(userId) && settingsId == 'settings';
     }
 
@@ -136,23 +172,27 @@ service cloud.firestore {
       allow list: if false;
       allow create: if request.auth != null
         && validLeaderboardOwner(entryId, request.resource.data)
-        && request.resource.data.ownerUid == request.auth.uid;
+        && request.resource.data.ownerUid == request.auth.uid
+        && settingsAreActiveFor(entryId, request.auth.uid);
       allow update: if request.auth != null
         && resource.data.ownerUid == request.auth.uid
         && validLeaderboardOwner(entryId, request.resource.data)
-        && request.resource.data.ownerUid == request.auth.uid;
+        && request.resource.data.ownerUid == request.auth.uid
+        && settingsAreActiveFor(entryId, request.auth.uid);
       allow delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
     }
 
     match /publicLeaderboard/{entryId} {
-      allow get, list: if request.auth != null;
-      allow create, update: if request.auth != null
+      allow get: if request.auth != null;
+      allow list: if request.auth != null && request.query.limit <= 25;
+      allow create: if request.auth != null
         && validPublicLeaderboardEntry(request.resource.data)
-        && existsAfter(leaderboardOwnerPath(entryId))
-        && getAfter(leaderboardOwnerPath(entryId)).data.ownerUid == request.auth.uid
-        && getAfter(leaderboardOwnerPath(entryId)).data.entryId == entryId
-        && getAfter(leaderboardOwnerPath(entryId)).data.displayName == request.resource.data.displayName
-        && getAfter(leaderboardOwnerPath(entryId)).data.weekKey == request.resource.data.weekKey;
+        && publicEntryHasActiveOwner(entryId, request.resource.data, request.auth.uid);
+      allow update: if request.auth != null
+        && validPublicLeaderboardEntry(request.resource.data)
+        && (request.resource.data.weekKey != resource.data.weekKey
+          || request.resource.data.weeklyPoints >= resource.data.weeklyPoints)
+        && publicEntryHasActiveOwner(entryId, request.resource.data, request.auth.uid);
       allow delete: if request.auth != null
         && exists(leaderboardOwnerPath(entryId))
         && get(leaderboardOwnerPath(entryId)).data.ownerUid == request.auth.uid;

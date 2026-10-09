@@ -125,9 +125,13 @@ fun WorkspaceLevelCheck(
         } else {
             item {
                 WorkspaceCard(color = LetsStudyColors.Mint) {
-                    Text(if (isProgressCheck) "Your progress check" else "Your approximate range", style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
-                    Text(placement.estimatedRange, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Text("${placement.correct} of ${placement.total} correct in ${placement.language}. The total alone doesn’t decide your range; we also look at your answers across five difficulty bands.", style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+                    Text(if (isProgressCheck) "Your progress check" else "A good place to start", style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                    Text(if (isProgressCheck) placement.estimatedRange else placement.startingLevel, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("${placement.correct} of ${placement.total} correct in ${placement.language}.", style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+                    if (!isProgressCheck && placement.estimatedRange != placement.startingLevel) {
+                        Text("Your answers also show some skills around ${placement.estimatedRange.substringAfter('–')}.", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                    }
+                    Text("We consider your whole answer pattern, so one difficult band won’t cancel stronger answers elsewhere.", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
                     if (isProgressCheck) {
                         Text("Your current study level: $previousLevel", style = androidx.compose.material3.MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(
@@ -204,9 +208,10 @@ fun WorkspacePlacementResultScreen(
         item { WorkspaceTitle(if (attempt.attemptType == "PROGRESS_CHECK") "Your learning progress." else "Your starting point.", "$completedDate · ${attempt.language}") }
         item {
             WorkspaceCard(color = LetsStudyColors.Mint) {
-                Text("YOUR APPROXIMATE RANGE", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
-                Text(attempt.estimatedRange, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("${attempt.correct} of ${attempt.total} correct. The range reflects your pattern across five difficulty bands, not a pass/fail score.", style = MaterialTheme.typography.bodyMedium)
+                Text("YOUR STARTING POINT", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
+                Text(attempt.startingLevel, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("${attempt.correct} of ${attempt.total} correct · estimated range ${attempt.estimatedRange}.", style = MaterialTheme.typography.bodyMedium)
+                Text("This is a study recommendation based on the whole answer pattern, not a pass/fail score.", style = MaterialTheme.typography.bodyMedium)
                 Text(placementGuidance(attempt.level, attempt.startingLevel), style = MaterialTheme.typography.bodyMedium)
                 if (attempt.attemptType == "PROGRESS_CHECK") {
                     Text("Study level: $currentLevel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -256,9 +261,9 @@ fun WorkspacePlacementResultScreen(
 
 private fun placementGuidance(level: String, startingLevel: String): String =
     if (startingLevel != level) {
-        "You have a steady foundation through $level, with signs of $startingLevel skills. Try material around $startingLevel first; move up or down whenever it feels right."
+        "You have a steady foundation through $level, with some answers at $startingLevel. Start there if you want a challenge, or choose the level that feels comfortable."
     } else {
-        "Your answers show a steady foundation through $level. Start there and move up whenever the material feels comfortable."
+        "Based on this short sample, $level is a useful place to begin. Move up or down whenever the material feels too easy or too difficult."
     }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.itemsForPlacement(count: Int, item: @Composable (Int) -> Unit) {

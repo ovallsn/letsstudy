@@ -12,8 +12,10 @@ import android.graphics.Rect
 import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.util.UUID
 import kotlin.math.min
 
@@ -62,6 +64,25 @@ class ProfilePhotoStore(context: Context) {
         photoDirectory.listFiles { file -> file.name.startsWith("profile-") }?.forEach(File::delete)
     }
 
+    fun createLeaderboardThumbnail(path: String): ByteArray {
+        val source = BitmapFactory.decodeFile(path) ?: throw IOException("The selected profile photo could not be reopened.")
+        val thumbnail = Bitmap.createScaledBitmap(source, BOARD_SIZE, BOARD_SIZE, true)
+        try {
+            val output = ByteArrayOutputStream()
+            for (quality in intArrayOf(76, 64, 52, 40)) {
+                output.reset()
+                if (!thumbnail.compress(Bitmap.CompressFormat.JPEG, quality, output)) {
+                    throw IOException("The selected profile photo could not be prepared for the community board.")
+                }
+                if (output.size() <= MAX_BOARD_THUMBNAIL_BYTES) return output.toByteArray()
+            }
+            throw IOException("The selected profile photo could not be reduced for the community board.")
+        } finally {
+            if (thumbnail !== source) thumbnail.recycle()
+            source.recycle()
+        }
+    }
+
     private fun decode(uri: Uri): Bitmap {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val imageSource = ImageDecoder.createSource(resolver, uri)
@@ -107,5 +128,10 @@ class ProfilePhotoStore(context: Context) {
             ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(270f)
         }
         return if (matrix.isIdentity) bitmap else Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
+
+    companion object {
+        const val BOARD_SIZE = 96
+        const val MAX_BOARD_THUMBNAIL_BYTES = 12 * 1024
     }
 }

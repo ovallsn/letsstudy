@@ -2,7 +2,7 @@
 
 ## MagicPath Study Workspace implementation
 
-The selected “Let’s Study — Study Workspace” revision is the visual source of truth. Its portrait home screen uses a left-aligned menu and page title, compact search/reminder/profile actions, a date and personal greeting, a streak chip, one prominent AI study composer, two compact shortcuts, and five quiet bottom-navigation destinations. The Compose implementation adapts this hierarchy to Android safe areas and scrolling while retaining the project's DM Sans and Manrope typefaces, violet accents, soft lavender surfaces, and white cards.
+The selected “Let’s Study — Study Workspace” revision is the visual source of truth. Its portrait home screen uses a left-aligned menu and page title, compact leaderboard/reminder/profile actions, a date and personal greeting, a streak chip, one prominent study composer, two compact shortcuts, and five quiet bottom-navigation destinations. The Compose implementation adapts this hierarchy to Android safe areas and scrolling while retaining the project's DM Sans and Manrope typefaces, violet accents, soft lavender surfaces, and white cards.
 
 The same shared header, card treatment, and bottom navigation carry through the existing study, job preparation, library, progress, and settings flows. Home's composer creates the same topic path as the dedicated topic form; its job shortcut opens the existing job-offer flow. Material import remains available from New study. Saved studies, answers, explanations, tutor conversations, and progress remain backed by local Room records.
 

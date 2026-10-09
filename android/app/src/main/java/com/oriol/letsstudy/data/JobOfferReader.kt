@@ -15,6 +15,7 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.Inet4Address
@@ -148,49 +149,65 @@ class JobOfferReader internal constructor(
     fun parseHtml(html: String, finalUrl: String): JobOfferSource {
         val document = Jsoup.parse(html, finalUrl)
         val structuredPosting = findJobPosting(document)
-        val title: String
-        val text: String
-        if (structuredPosting != null) {
-            title = structuredPosting.get("title")?.takeIf { it.isJsonPrimitive }?.asString
+        val microdataPosting = findMicrodataJobPosting(document)
+        val title = structuredPosting?.get("title")?.takeIf { it.isJsonPrimitive }?.asString
+            ?.takeIf(String::isNotBlank)
+            ?: microdataPosting?.let { itemPropText(it, "title") }
+            ?: document.selectFirst("main h1, [role=main] h1, article h1, h1")?.text()
                 ?.takeIf(String::isNotBlank)
-                ?: document.selectFirst("h1")?.text().orEmpty().ifBlank { document.title() }
-            val fields = listOf(
-                "description",
-                "responsibilities",
-                "qualifications",
-                "experienceRequirements",
-                "educationRequirements",
-                "skills",
-                "employmentType",
-                "jobLocation",
-                "hiringOrganization",
-            )
-            val details = fields.mapNotNull { key ->
-                structuredPosting.get(key)?.let(::flattenJsonValue)?.takeIf(String::isNotBlank)
+            ?: document.selectFirst("meta[property=og:title]")?.attr("content")?.takeIf(String::isNotBlank)
+            ?: document.title()
+        val text = when {
+            structuredPosting != null -> {
+                val fields = listOf(
+                    "description",
+                    "responsibilities",
+                    "qualifications",
+                    "experienceRequirements",
+                    "educationRequirements",
+                    "skills",
+                    "employmentType",
+                    "jobLocation",
+                    "hiringOrganization",
+                )
+                val details = fields.mapNotNull { key ->
+                    structuredPosting.get(key)?.let(::flattenJsonValue)?.takeIf(String::isNotBlank)
+                }
+                buildString {
+                    appendLine("Job title: $title")
+                    details.forEach(::appendLine)
+                }.cleanText()
             }
-            text = buildString {
-                appendLine("Job title: $title")
-                details.forEach(::appendLine)
-            }.cleanText()
-        } else {
-            title = document.selectFirst("main h1, [role=main] h1, article h1, h1")?.text()
-                ?.takeIf(String::isNotBlank) ?: document.title()
-            val main = document.selectFirst("main")
-                ?: document.selectFirst("[role=main]")
-                ?: document.selectFirst("article")
-                ?: document.body()
-            val readableMain = main.clone()
-            readableMain.select("script,style,nav,header,footer,aside,form,button,[aria-hidden=true]").remove()
-            text = buildString {
-                if (title.isNotBlank()) appendLine("Page title: $title")
-                append(readableMain.text())
-            }.cleanText()
+            microdataPosting != null -> microdataText(microdataPosting, title)
+            else -> {
+                val description = document.selectFirst(
+                    "#jobDescriptionText, #job-description, [data-testid*=job-description], [itemprop=description], [id*=jobDescription], [class*=job-description], [class*=jobDescription], [class*=JobDescription]",
+                )
+                val main = description
+                    ?: document.selectFirst("main")
+                    ?: document.selectFirst("[role=main]")
+                    ?: document.selectFirst("article")
+                    ?: document.body()
+                val readableMain = main.clone()
+                readableMain.select("script,style,nav,header,footer,aside,form,button,[aria-hidden=true],[role=dialog]").remove()
+                val mainText = readableMain.text().cleanText()
+                val metaDescription = document.selectFirst("meta[property=og:description], meta[name=description]")
+                    ?.attr("content")?.let { Jsoup.parse(it).text().cleanText() }.orEmpty()
+                buildString {
+                    if (title.isNotBlank()) appendLine("Job title: $title")
+                    append(mainText)
+                    if (mainText.length < MIN_TEXT_CHARS && metaDescription.isNotBlank() && !mainText.contains(metaDescription, ignoreCase = true)) {
+                        append(" ")
+                        append(metaDescription)
+                    }
+                }.cleanText()
+            }
         }
 
         val challengeReason = challengeReason(document)
         if (challengeReason != null) return unreadable(finalUrl, challengeReason)
 
-        val hasStructuredPosting = structuredPosting != null
+        val hasStructuredPosting = structuredPosting != null || microdataPosting != null
         val hasJobTerms = JOB_TERMS.findAll(text).count() >= 2
         val hasJobPath = finalUrl.toHttpUrlOrNull()?.encodedPath.orEmpty().contains(JOB_PATH_TERMS)
         if (text.length < MIN_TEXT_CHARS || (!hasStructuredPosting && !hasJobTerms && !hasJobPath)) {
@@ -202,6 +219,39 @@ class JobOfferReader internal constructor(
             extractedText = text.take(MAX_EXTRACTED_CHARS),
             readable = true,
         )
+    }
+
+    private fun findMicrodataJobPosting(document: Document): Element? =
+        document.select("[itemscope][itemtype]").firstOrNull { item ->
+            item.attr("itemtype").split(Regex("\\s+")).any { type ->
+                type.trimEnd('/').substringAfterLast('/').equals("JobPosting", ignoreCase = true)
+            }
+        }
+
+    private fun microdataText(posting: Element, title: String): String {
+        val fields = listOf(
+            "description",
+            "responsibilities",
+            "qualifications",
+            "experienceRequirements",
+            "educationRequirements",
+            "skills",
+            "employmentType",
+            "jobLocation",
+            "hiringOrganization",
+        )
+        return buildString {
+            appendLine("Job title: $title")
+            fields.mapNotNull { itemPropText(posting, it) }.forEach(::appendLine)
+        }.cleanText()
+    }
+
+    private fun itemPropText(element: Element, property: String): String? {
+        val value = element.select("[itemprop]")
+            .firstOrNull { item -> item.attr("itemprop").split(Regex("\\s+")).any { it.equals(property, ignoreCase = true) } }
+            ?.let { item -> item.attr("content").ifBlank { item.attr("datetime").ifBlank { item.text() } } }
+            ?: return null
+        return Jsoup.parse(value).text().cleanText().takeIf(String::isNotBlank)
     }
 
     private fun findJobPosting(document: Document): JsonObject? {
@@ -302,8 +352,8 @@ class JobOfferReader internal constructor(
         private const val MAX_EXTRACTED_CHARS = 18_000
         private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10; Let\u0027sStudy) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36"
         private val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
-        private val JOB_TERMS = Regex("\\b(job|jobs|role|position|vacancy|vacancies|career|responsibilit(?:y|ies)|requirement|qualification|experience|skills|apply|employment|empleo|trabajo|vacante|responsabilidades|requisitos|cualificaciones|experiencia)\\b", RegexOption.IGNORE_CASE)
-        private val JOB_PATH_TERMS = Regex("job|career|vacan|emple|trabaj", RegexOption.IGNORE_CASE)
+        private val JOB_TERMS = Regex("\\b(job|jobs|role|position|vacancy|vacancies|career|responsibilit(?:y|ies)|requirement|qualification|experience|skills|apply|employment|empleo|trabajo|vacante|responsabilidades|requisitos|cualificaciones|experiencia|offre|offres|poste|postes|candidat(?:e|es|s)?|compétences|responsabilités|recrutement)\\b", RegexOption.IGNORE_CASE)
+        private val JOB_PATH_TERMS = Regex("job|career|vacan|emple|trabaj|emploi|offre|poste|recrut", RegexOption.IGNORE_CASE)
 
         private fun defaultClient() = OkHttpClient.Builder()
             .followRedirects(false)

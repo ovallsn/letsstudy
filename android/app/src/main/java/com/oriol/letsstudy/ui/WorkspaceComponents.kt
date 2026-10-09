@@ -13,13 +13,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Eco
+import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Pets
 import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,7 +42,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 data class WorkspaceHeaderActions(
-    val onSearch: () -> Unit = {},
+    val onLeaderboard: () -> Unit = {},
     val onNotifications: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val learnerName: String = "",
@@ -97,8 +97,8 @@ fun WorkspaceTopBar(title: String, onMenu: () -> Unit, trailing: @Composable (()
         if (trailing != null) {
             trailing()
         } else {
-            HeaderActionButton(actions.onSearch, "Search studies") {
-                Icon(Icons.Outlined.Search, null, tint = LetsStudyColors.Muted, modifier = Modifier.size(19.dp))
+            HeaderActionButton(actions.onLeaderboard, "Community leaderboard") {
+                Icon(Icons.Outlined.EmojiEvents, null, tint = LetsStudyColors.Muted, modifier = Modifier.size(19.dp))
             }
             HeaderActionButton(actions.onNotifications, "Study reminders") {
                 Icon(Icons.Outlined.NotificationsNone, null, tint = LetsStudyColors.Muted, modifier = Modifier.size(19.dp))

@@ -92,7 +92,7 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
         when { showTutor -> showTutor = false; state.selectedQuestion != null -> viewModel.closeQuestion(); destination == AppDestination.PLACEMENT_RESULT -> destination = AppDestination.PROGRESS; destination == AppDestination.SESSION -> { viewModel.closeSession(); destination = AppDestination.LIBRARY }; else -> destination = AppDestination.HOME }
     }
     val headerActions = WorkspaceHeaderActions(
-        onSearch = { navigate(AppDestination.LIBRARY) },
+        onLeaderboard = { navigate(AppDestination.LEADERBOARD) },
         onNotifications = { navigate(AppDestination.NOTIFICATIONS) },
         onProfile = { navigate(AppDestination.SETTINGS) },
         learnerName = if (state.account.email != null) state.account.displayName.orEmpty() else state.settings.name,
