@@ -415,6 +415,24 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         val before = _uiState.value.settings
         if (before.dailyReminder != safe.dailyReminder || before.weeklySummary != safe.weeklySummary || before.reminderHour != safe.reminderHour || before.reminderMinute != safe.reminderMinute) StudyReminders.schedule(getApplication(), safe)
         _uiState.update { it.copy(settings = safe) }
+        if (before.photoPath != safe.photoPath && _uiState.value.leaderboard.enabled && _uiState.value.leaderboard.photoShared) {
+            syncLeaderboardPhoto(safe.photoPath)
+        }
+    }
+
+    private fun syncLeaderboardPhoto(path: String) {
+        _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                val thumbnail = path.takeIf(String::isNotBlank)?.let { photoPath ->
+                    withContext(Dispatchers.IO) { profilePhotoStore.createLeaderboardThumbnail(photoPath) }
+                }
+                leaderboardRepository.setPhotoSharing(thumbnail != null, thumbnail, currentWeeklyPoints())
+                _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
+            } catch (error: Exception) {
+                _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }
+            }
+        }
     }
 
     fun saveProfilePhoto(uri: android.net.Uri) {
@@ -488,7 +506,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     fun refreshLeaderboard() {
         val account = _uiState.value.account
         if (account.email == null || !account.profileComplete) {
-            _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = "Sign in and complete your learner profile to view the community board.")) }
+            _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = null)) }
             return
         }
         _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = true, error = null)) }
@@ -502,15 +520,43 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun enableLeaderboard(nickname: String) {
+    fun enableLeaderboard(nickname: String, sharePhoto: Boolean) {
         if (_uiState.value.account.email == null || !_uiState.value.account.profileComplete) {
             _uiState.update { it.copy(leaderboard = it.leaderboard.copy(error = "Sign in and complete your learner profile before joining.")) }
+            return
+        }
+        val photoPath = _uiState.value.settings.photoPath
+        if (sharePhoto && photoPath.isBlank()) {
+            _uiState.update { it.copy(leaderboard = it.leaderboard.copy(error = "Choose a profile photo in Settings before sharing it.")) }
             return
         }
         _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = true, error = null)) }
         viewModelScope.launch {
             try {
-                leaderboardRepository.optIn(nickname, currentWeeklyPoints())
+                val thumbnail = if (sharePhoto) withContext(Dispatchers.IO) {
+                    profilePhotoStore.createLeaderboardThumbnail(photoPath)
+                } else null
+                leaderboardRepository.optIn(nickname, currentWeeklyPoints(), thumbnail)
+                _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
+            } catch (error: Exception) {
+                _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }
+            }
+        }
+    }
+
+    fun setLeaderboardPhotoSharing(enabled: Boolean) {
+        val photoPath = _uiState.value.settings.photoPath
+        if (enabled && photoPath.isBlank()) {
+            _uiState.update { it.copy(leaderboard = it.leaderboard.copy(error = "Choose a profile photo in Settings before sharing it.")) }
+            return
+        }
+        _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                val thumbnail = if (enabled) withContext(Dispatchers.IO) {
+                    profilePhotoStore.createLeaderboardThumbnail(photoPath)
+                } else null
+                leaderboardRepository.setPhotoSharing(enabled, thumbnail, currentWeeklyPoints())
                 _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
             } catch (error: Exception) {
                 _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }

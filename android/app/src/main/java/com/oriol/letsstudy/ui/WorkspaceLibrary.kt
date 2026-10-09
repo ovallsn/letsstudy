@@ -160,9 +160,18 @@ fun WorkspaceProgress(
             }
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                WorkspaceCard(Modifier.weight(1f)) { Text("Answered", color = LetsStudyColors.Muted); Text("${answered.size}", style = MaterialTheme.typography.headlineMedium) }
-                WorkspaceCard(Modifier.weight(1f)) { Text("Mastered answers", color = LetsStudyColors.Muted); Text(if (scored.isEmpty()) "—" else "${100 * correct / scored.size}%", style = MaterialTheme.typography.headlineMedium) }
+            Row(
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                WorkspaceCard(Modifier.weight(1f).fillMaxHeight()) {
+                    Text("Answered", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Muted)
+                    Text("${answered.size}", style = MaterialTheme.typography.headlineMedium)
+                }
+                WorkspaceCard(Modifier.weight(1f).fillMaxHeight()) {
+                    Text("Mastered answers", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Muted)
+                    Text(if (scored.isEmpty()) "—" else "${100 * correct / scored.size}%", style = MaterialTheme.typography.headlineMedium)
+                }
             }
             Text("Mastered means a correct objective answer, a ‘Know it’ rating or AI feedback of 80+.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted, modifier = Modifier.padding(top = 8.dp))
         }

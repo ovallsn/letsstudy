@@ -9,5 +9,11 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "publicLeaderboard",
+      "fieldPath": "avatarThumb",
+      "indexes": []
+    }
+  ]
 }
