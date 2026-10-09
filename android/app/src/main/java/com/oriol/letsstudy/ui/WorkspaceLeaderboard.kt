@@ -168,13 +168,27 @@ private fun LeaderboardAvatar(displayName: String, imageBytes: ByteArray?) {
         imageBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
     }
     Box(
-        Modifier.size(42.dp).clip(CircleShape).background(LetsStudyColors.Mint),
+        Modifier.size(42.dp).clip(CircleShape).background(LetsStudyColors.Ink),
         contentAlignment = Alignment.Center,
     ) {
         if (image != null) {
             Image(image, contentDescription = "$displayName's profile photo", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         } else {
-            Text(displayName.take(1).uppercase(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = LetsStudyColors.Primary)
+            Text(
+                leaderboardInitials(displayName),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = LetsStudyColors.Card,
+            )
         }
     }
 }
+
+private fun leaderboardInitials(displayName: String): String = displayName
+    .trim()
+    .split(Regex("[\\s_-]+"))
+    .filter(String::isNotBlank)
+    .take(2)
+    .mapNotNull { it.firstOrNull()?.uppercaseChar()?.toString() }
+    .joinToString("")
+    .ifBlank { "?" }
