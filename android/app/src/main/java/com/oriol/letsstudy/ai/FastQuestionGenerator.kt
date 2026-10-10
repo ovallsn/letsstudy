@@ -10,6 +10,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 interface FastQuestionGenerator {
     suspend fun generate(prompt: String): String
 
+    suspend fun generateWorkspace(prompt: String): String =
+        throw UnsupportedOperationException("Workspace generation is not supported by this generator.")
+
     /** Optional deeper explanation, requested separately so normal question rounds use no extra quota. */
     suspend fun generateLesson(prompt: String): String =
         throw UnsupportedOperationException("Concept lessons are not supported by this generator.")
@@ -65,7 +68,7 @@ class FirebaseFastQuestionGenerator : FastQuestionGenerator {
         )
     }
 
-    suspend fun generateWorkspace(prompt: String): String = withTimeoutOrNull(90_000L) {
+    override suspend fun generateWorkspace(prompt: String): String = withTimeoutOrNull(90_000L) {
         workspaceModel.generateContent(prompt).text
     } ?: throw InvalidStudyOutputException("The study service took too long. Try again; your saved data is safe.")
 
