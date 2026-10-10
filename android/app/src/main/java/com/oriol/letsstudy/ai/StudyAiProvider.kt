@@ -43,6 +43,7 @@ class StudyAiException(
     val kind: StudyAiErrorKind,
     val requestId: String? = null,
     cause: Throwable? = null,
+    val statusCode: Int? = null,
 ) : Exception("Study AI request failed: ${kind.name}", cause)
 
 class FirebaseStudyAiProvider(
