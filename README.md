@@ -6,9 +6,9 @@
 
 <p align="center"><strong>Learn something new. Feel ready for what’s next.</strong></p>
 
-<p align="center">Not feeling ready for your next interview? LetsStudy turns a job description into focused practice, one question at a time.</p>
+<p align="center">Explore a topic, build a language skill, study your own materials, or prepare for an interview or meeting. LetsStudy turns your goal into a guided path with focused practice.</p>
 
-<p align="center">It is also a place to explore a topic, learn from your own notes, build your English, and keep track of what you understand.</p>
+<p align="center">Understand each answer, revisit what you have learned, and keep track of your progress.</p>
 
 <p align="center">
   <a href="https://github.com/ovallsn/letsstudy/actions/workflows/android.yml"><img src="https://github.com/ovallsn/letsstudy/actions/workflows/android.yml/badge.svg" alt="Android checks"></a>
@@ -75,7 +75,7 @@ The app supports three ways to generate study content:
 - **ChatGPT · Connect your account.** An optional Sign in with ChatGPT flow can use eligible account access for the app. Each learner connects their own account; a ChatGPT subscription is not unlimited app capacity, and access or usage limits may apply.
 - **On-device.** An optional Gemma model runs on the phone after a one-time download. This avoids sending study text to a generation service for that action, but requires substantial storage and can be slower.
 
-The learner chooses the provider in the app. Let’sStudy does not silently send a request to another provider when one fails. A usage-limit fallback to the on-device model is available only when the learner enables it. A topic or job can still be studied without connecting a separate AI account; the optional LetsStudy account is only for syncing app data.
+The learner chooses the provider in the app. LetsStudy does not silently send a request to another provider when one fails. A usage-limit fallback to the on-device model is available only when the learner enables it. A topic or job can still be studied without connecting a separate AI account; the optional LetsStudy account is only for syncing app data.
 
 Generated material can be incomplete or wrong. Check legal, medical, safety, and technical information against sources you trust before relying on it.
 
