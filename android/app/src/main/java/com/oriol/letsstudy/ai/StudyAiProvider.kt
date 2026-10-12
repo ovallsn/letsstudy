@@ -6,6 +6,12 @@ enum class StudyAiProviderId {
     ON_DEVICE,
 }
 
+fun studyAiProviderIdForGenerationMode(mode: String): StudyAiProviderId = when (mode.uppercase()) {
+    "OFFLINE", "ON_DEVICE" -> StudyAiProviderId.ON_DEVICE
+    "CHATGPT" -> StudyAiProviderId.CHATGPT
+    else -> StudyAiProviderId.GEMINI
+}
+
 enum class StudyAiTask {
     JOB_QUESTIONS,
     STUDY_PATH,
@@ -44,6 +50,7 @@ class StudyAiException(
     val requestId: String? = null,
     cause: Throwable? = null,
     val statusCode: Int? = null,
+    val fallbackReason: StudyAiErrorKind? = null,
 ) : Exception("Study AI request failed: ${kind.name}", cause)
 
 class FirebaseStudyAiProvider(

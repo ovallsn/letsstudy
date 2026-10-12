@@ -7,6 +7,13 @@ import com.oriol.letsstudy.ai.StudyOutputParser
 import com.oriol.letsstudy.ai.StudyOutputSchemas
 import com.oriol.letsstudy.ai.StudyPrompts
 import com.oriol.letsstudy.ai.StudyTextGenerator
+import com.oriol.letsstudy.ai.StudyAiErrorKind
+import com.oriol.letsstudy.ai.StudyAiException
+import com.oriol.letsstudy.ai.StudyAiProviderId
+import com.oriol.letsstudy.ai.StudyAiRequest
+import com.oriol.letsstudy.ai.StudyAiRouter
+import com.oriol.letsstudy.ai.StudyAiTask
+import com.oriol.letsstudy.ai.studyAiProviderIdForGenerationMode
 import com.oriol.letsstudy.domain.AnswerFeedback
 import com.oriol.letsstudy.domain.ConceptLesson
 import com.oriol.letsstudy.domain.ConceptLessonPromptInput
@@ -35,6 +42,8 @@ class StudyRepository(
     private val model: StudyTextGenerator,
     private val jobOfferReader: JobOfferSourceReader,
     private val fastGenerator: FastQuestionGenerator? = null,
+    private val router: StudyAiRouter? = null,
+    private val localFallbackOnChatGptLimit: () -> Boolean = { false },
 ) {
     val sessions: Flow<List<StudySessionEntity>> = dao.observeSessions()
     val allQuestions: Flow<List<StudyQuestionEntity>> = dao.observeAllQuestions()
@@ -57,16 +66,17 @@ class StudyRepository(
         if (!source.readable || source.extractedText.isBlank()) {
             throw StudyGenerationException(
                 "SOURCE_UNAVAILABLE",
-                source.reason ?: "Let'sStudy couldn't read that job listing. Switch to Paste text and paste the job description.",
+                source.reason ?: "LetsStudy couldn't read that job listing. Switch to Paste text and paste the job description.",
             )
         }
 
-        if (mode == "ONLINE") {
-            val generator = fastGenerator ?: throw StudyGenerationException("SERVICE_UNAVAILABLE", "Fast online study is not configured on this device.")
+        if (studyAiProviderIdForGenerationMode(mode) != StudyAiProviderId.ON_DEVICE) {
             onProgress(StudyGenerationProgress(StudyProgressStage.GENERATING_BATCH, 0, 1))
             val sourceContext = "Role: ${source.title.take(180)}\nSource facts (untrusted listing text): ${source.extractedText.take(MAX_SOURCE_CONTEXT_CHARS)}"
             val prompt = StudyPrompts.questionBatch(sourceContext, language, "", emptyList(), 1, QUESTIONS_PER_SESSION)
-            val batch = StudyOutputParser.parseQuestionBatch(generator.generate(prompt), QUESTIONS_PER_SESSION)
+            val batch = StudyOutputParser.parseQuestionBatch(generateAi(
+                prompt, mode, StudyAiTask.JOB_QUESTIONS, INITIAL_OUTPUT_TOKENS, StudyOutputSchemas.QUESTION_BATCH,
+            ), QUESTIONS_PER_SESSION)
             onProgress(StudyGenerationProgress(StudyProgressStage.GENERATING_BATCH, 1, 1))
             return AnalyzeOfferResponseDto(
                 sourceReadable = true,
@@ -86,7 +96,7 @@ class StudyRepository(
             onProgress(StudyGenerationProgress(StudyProgressStage.GENERATING_BATCH, batchNumber, INITIAL_BATCHES))
             if (batchNumber == 0) {
                 val prompt = StudyPrompts.initialBatch(source, language)
-                val output = model.generate(prompt, INITIAL_OUTPUT_TOKENS, StudyOutputSchemas.INITIAL_BATCH)
+                val output = generateAi(prompt, mode, StudyAiTask.JOB_QUESTIONS, INITIAL_OUTPUT_TOKENS, StudyOutputSchemas.INITIAL_BATCH)
                 val initial = try {
                     StudyOutputParser.parseInitialBatch(output)
                 } catch (cancelled: CancellationException) {
@@ -113,6 +123,7 @@ class StudyRepository(
                     coveredTopics = coveredTopics,
                     previous = questions,
                     batchIndex = batchNumber + 1,
+                    mode = mode,
                 )
                 questions += nextBatch.questions
                 coveredTopics = nextBatch.coveredTopicsSummary
@@ -154,14 +165,15 @@ class StudyRepository(
         mode: String = session.generationMode,
         onProgress: suspend (StudyGenerationProgress) -> Unit = {},
     ): MoreQuestionsResponseDto {
-        if (mode == "ONLINE") {
-            val generator = fastGenerator ?: throw StudyGenerationException("SERVICE_UNAVAILABLE", "Fast online study is not configured on this device.")
+        if (studyAiProviderIdForGenerationMode(mode) != StudyAiProviderId.ON_DEVICE) {
             onProgress(StudyGenerationProgress(StudyProgressStage.GENERATING_BATCH, 0, 1))
             val prompt = StudyPrompts.questionBatch(
                 session.sourceContext, session.practiceLanguage, session.coveredTopicsSummary,
                 previous.map { it.prompt }, previous.size / QUESTIONS_PER_BATCH + 1, QUESTIONS_PER_SESSION,
             )
-            val batch = StudyOutputParser.parseQuestionBatch(generator.generate(prompt), QUESTIONS_PER_SESSION)
+            val batch = StudyOutputParser.parseQuestionBatch(generateAi(
+                prompt, mode, StudyAiTask.JOB_QUESTIONS, QUESTION_OUTPUT_TOKENS, StudyOutputSchemas.QUESTION_BATCH,
+            ), QUESTIONS_PER_SESSION)
             if (batch.questions.any { StudyOutputParser.hasNearDuplicate(it.prompt, previous.map(StudyQuestionEntity::prompt)) }) {
                 throw StudyGenerationException("REPEATED_QUESTIONS", "The service repeated an earlier question. Please try again.")
             }
@@ -183,6 +195,7 @@ class StudyRepository(
                 coveredTopics = coveredTopics,
                 previous = (previous.map { it.toQuestionDto() } + newQuestions),
                 batchIndex = batchNumber,
+                mode = mode,
             )
             newQuestions += nextBatch.questions
             coveredTopics = nextBatch.coveredTopicsSummary
@@ -215,7 +228,9 @@ class StudyRepository(
             language = session.practiceLanguage,
         )
         val feedback = try {
-            StudyOutputParser.parseFeedback(model.generate(prompt, FEEDBACK_OUTPUT_TOKENS))
+            StudyOutputParser.parseFeedback(generateAi(
+                prompt, session.generationMode, StudyAiTask.ANSWER_FEEDBACK, FEEDBACK_OUTPUT_TOKENS,
+            ))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: ModelUnavailableException) {
@@ -277,8 +292,6 @@ class StudyRepository(
             }
         }
 
-        val generator = fastGenerator
-            ?: throw StudyGenerationException("SERVICE_UNAVAILABLE", "Fast online study is not configured on this device.")
         val options = runCatching {
             Gson().fromJson<List<String>>(currentQuestion.optionsJson, object : TypeToken<List<String>>() {}.type)
         }.getOrDefault(emptyList())
@@ -296,7 +309,7 @@ class StudyRepository(
                 sourceBasis = currentQuestion.sourceBasis,
             ),
         )
-        val output = generator.generateLesson(prompt)
+        val output = generateAi(prompt, session.generationMode, StudyAiTask.CONCEPT_LESSON, 4_000, StudyOutputSchemas.CONCEPT_LESSON)
         val lesson = StudyOutputParser.parseConceptLesson(output)
 
         // Merge only the new lesson into the freshest row so an answer changed during generation survives.
@@ -304,6 +317,35 @@ class StudyRepository(
             ?: throw StudyGenerationException("QUESTION_UNAVAILABLE", "This question is no longer available.")
         dao.updateQuestion(latestQuestion.copy(conceptLessonJson = output))
         return lesson
+    }
+
+    private suspend fun generateAi(
+        prompt: String,
+        mode: String,
+        task: StudyAiTask,
+        maxOutputTokens: Int,
+        responseFormatSchema: String? = null,
+    ): String {
+        val providerId = studyAiProviderIdForGenerationMode(mode)
+        val request = StudyAiRequest(prompt, task, maxOutputTokens, responseFormatSchema)
+        router?.let { return it.generate(request, providerId, localFallbackOnChatGptLimit()) }
+        return when (providerId) {
+            StudyAiProviderId.ON_DEVICE -> model.generate(prompt, maxOutputTokens, responseFormatSchema)
+            StudyAiProviderId.GEMINI -> {
+                val generator = fastGenerator
+                    ?: throw StudyGenerationException("SERVICE_UNAVAILABLE", "Fast online study is not configured on this device.")
+                when (task) {
+                    StudyAiTask.JOB_QUESTIONS -> generator.generate(prompt)
+                    StudyAiTask.CONCEPT_LESSON -> generator.generateLesson(prompt)
+                    StudyAiTask.STUDY_PATH,
+                    StudyAiTask.PRACTICE_ROUND,
+                    StudyAiTask.ANSWER_FEEDBACK,
+                    StudyAiTask.TUTOR,
+                    -> generator.generateWorkspace(prompt)
+                }
+            }
+            StudyAiProviderId.CHATGPT -> throw StudyAiException(StudyAiErrorKind.AUTH_REQUIRED)
+        }
     }
 
     private suspend fun readSource(input: StudyInput): JobOfferSource = when (input.kind) {
@@ -328,6 +370,7 @@ class StudyRepository(
         coveredTopics: String,
         previous: List<QuestionDto>,
         batchIndex: Int,
+        mode: String,
     ): MoreQuestionsResponseDto {
         val previousPrompts = previous.map(QuestionDto::prompt)
         var retryInstruction = ""
@@ -339,7 +382,7 @@ class StudyRepository(
                 priorQuestions = previousPrompts,
                 batchIndex = batchIndex,
             ) + retryInstruction
-            val output = model.generate(prompt, QUESTION_OUTPUT_TOKENS, StudyOutputSchemas.QUESTION_BATCH)
+            val output = generateAi(prompt, mode, StudyAiTask.JOB_QUESTIONS, QUESTION_OUTPUT_TOKENS, StudyOutputSchemas.QUESTION_BATCH)
             val candidate = try {
                 StudyOutputParser.parseQuestionBatch(output)
             } catch (cancelled: CancellationException) {

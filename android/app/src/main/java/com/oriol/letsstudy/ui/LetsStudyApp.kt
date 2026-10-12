@@ -117,7 +117,7 @@ fun LetsStudyApp(viewModel: LetsStudyViewModel) {
                             }
                             Spacer(Modifier.width(10.dp))
                             Column {
-                                Text("let’sstudy", style = MaterialTheme.typography.titleLarge, color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("LetsStudy", style = MaterialTheme.typography.titleLarge, color = Color.White, fontWeight = FontWeight.Bold)
                                 Text("YOUR STUDY SPACE", style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Sun)
                             }
                         }

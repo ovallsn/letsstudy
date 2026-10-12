@@ -2,6 +2,7 @@ package com.oriol.letsstudy.ai
 
 class StudyAiRouter(
     private val providers: Map<StudyAiProviderId, StudyAiProvider>,
+    private val onLocalFallback: (StudyAiTask) -> Unit = {},
 ) {
     suspend fun generate(
         request: StudyAiRequest,
@@ -22,11 +23,13 @@ class StudyAiRouter(
             }
 
             val localProvider = providers[StudyAiProviderId.ON_DEVICE]
-                ?: throw StudyAiException(StudyAiErrorKind.MODEL_NOT_AVAILABLE, cause = error)
+                ?: throw StudyAiException(StudyAiErrorKind.MODEL_NOT_AVAILABLE, cause = error, fallbackReason = error.kind)
             try {
-                return localProvider.generate(request)
+                val result = localProvider.generate(request)
+                onLocalFallback(request.task)
+                return result
             } catch (localError: ModelUnavailableException) {
-                throw StudyAiException(StudyAiErrorKind.MODEL_NOT_AVAILABLE, cause = localError)
+                throw StudyAiException(StudyAiErrorKind.MODEL_NOT_AVAILABLE, cause = localError, fallbackReason = error.kind)
             }
         }
     }

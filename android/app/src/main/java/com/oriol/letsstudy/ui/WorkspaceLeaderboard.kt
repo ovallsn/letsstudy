@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -64,7 +65,7 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
         item {
             WorkspaceCard(color = LetsStudyColors.Mint) {
                 Text("What other learners will see", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text("The board is visible to signed-in Let’sStudy learners. Joining shares your chosen username and weekly points. Your profile photo is shared only if you turn on the photo option below. Your email, profile display name, studies and answers stay private. Joining is optional.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("The board is visible to signed-in LetsStudy learners. Joining shares your chosen username, weekly points and current study streak. Your profile photo is shared only if you turn on the photo option below. Your email, profile display name, studies and answers stay private. Joining is optional.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             }
         }
         if (state.account.email == null || !state.account.profileComplete) item {
@@ -103,7 +104,7 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
                         Column(Modifier.weight(1f)) {
                             Text("Share my profile photo", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                             Text(
-                                if (leaderboard.photoShared) "Your small photo is visible on this board." else "Only your username and weekly points are shared.",
+                                if (leaderboard.photoShared) "Your photo, username, weekly points and current streak are visible." else "Your username, weekly points and current streak are shared.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = LetsStudyColors.Muted,
                             )
@@ -131,6 +132,15 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
                                         if (index < 3) androidx.compose.material3.Icon(Icons.Outlined.EmojiEvents, contentDescription = "Top ${index + 1}", tint = LetsStudyColors.Clay, modifier = Modifier.size(15.dp))
                                     }
                                     Text(entry.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = if (mine) FontWeight.Bold else FontWeight.Medium)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        androidx.compose.material3.Icon(
+                                            Icons.Outlined.LocalFireDepartment,
+                                            contentDescription = null,
+                                            tint = LetsStudyColors.Clay,
+                                            modifier = Modifier.size(15.dp),
+                                        )
+                                        Text(studyStreakLabel(entry.currentStreakDays), style = MaterialTheme.typography.labelSmall, color = LetsStudyColors.Muted)
+                                    }
                                 }
                                 Text("${entry.weeklyPoints} pts", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
                             }

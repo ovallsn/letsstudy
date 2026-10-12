@@ -1,27 +1,27 @@
-# Let’sStudy design notes
+# LetsStudy design notes
 
-## MagicPath Study Workspace implementation
+## Study Workspace design
 
 The selected “Let’s Study — Study Workspace” revision is the visual source of truth. Its portrait home screen uses a left-aligned menu and page title, compact leaderboard/reminder/profile actions, a date and personal greeting, a streak chip, one prominent study composer, two compact shortcuts, and five quiet bottom-navigation destinations. The Compose implementation adapts this hierarchy to Android safe areas and scrolling while retaining the project's DM Sans and Manrope typefaces, violet accents, soft lavender surfaces, and white cards.
 
-The same shared header, card treatment, and bottom navigation carry through the existing study, job preparation, library, progress, and settings flows. Home's composer creates the same topic path as the dedicated topic form; its job shortcut opens the existing job-offer flow. Material import remains available from New study. Saved studies, answers, explanations, tutor conversations, and progress remain backed by local Room records.
+The same shared header, card treatment, and bottom navigation carry through the study, job preparation, library, progress, and settings flows. The home composer creates the same topic path as the dedicated topic form; its job shortcut opens the job-offer flow. Material import remains available from New study. Saved studies, answers, explanations, tutor conversations, and progress remain backed by local Room records.
 
 The canvas shows profile initials but no sign-in or account flow; the implemented app extends that reference with optional Firebase Authentication and private, consent-based Firestore sync. Guest study remains local to the phone. Unsupported OCR, code execution, and live legal verification are not represented as working features.
 
 ## Product idea
 
-Let’sStudy turns a goal into a manageable learning path. For interview preparation, the job description sets the context; for other goals, the learner's topic or study material does. Every path combines repeatable practice, clear explanations and saved progress, without requiring learners to bring an AI account.
+LetsStudy turns a goal into a manageable learning path. For interview preparation, the job description sets the context; for other goals, the learner's topic or study material does. Every path combines repeatable practice, clear explanations and saved progress, without requiring learners to bring an AI account.
 
 ## Competitor patterns reviewed
 
-| Product | Useful pattern | Let’sStudy decision |
+| Product | Useful pattern | LetsStudy decision |
 | --- | --- | --- |
 | [Quizlet Learn and Test](https://quizlet.com/features/study-modes) | Multiple-choice practice and separate study modes | Keep practice, saved questions, and answered-question review clearly labeled. |
 | [Brilliant](https://brilliant.org/help/features/) | Hands-on questions with immediate feedback and guided explanations | Show a concise explanation after each choice and keep it available on return. |
 | [Duolingo](https://blog.duolingo.com/new-duolingo-home-screen-design/) | A visible path and repeatable practice | Show progress through the set and let learners move to the next question without returning to a list. |
 | [Khan Academy](https://blog.khanacademy.org/how-should-people-practice-on-khan-academy/) | Explanatory rationales after an answer | Explain why the correct option works and why a tempting alternative fails. |
 
-These are behavior patterns, not visual assets to copy. The selected MagicPath canvas—not the earlier competitor notes—sets the current visual direction: violet, soft lavender, light neutral backgrounds, compact sans-serif navigation, and focused study cards.
+The app's visual direction uses violet accents, soft lavender surfaces, light neutral backgrounds, compact sans-serif navigation, and focused study cards. The interface applies these choices consistently across its own Android screens and components.
 
 ## Full app experience
 

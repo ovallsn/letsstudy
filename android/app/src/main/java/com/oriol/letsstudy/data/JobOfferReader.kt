@@ -64,7 +64,7 @@ class JobOfferReader internal constructor(
         val initial = url.trim().toHttpUrlOrNull()
             ?: return@withContext unreadable(url, "That link is not a valid web address.")
         if (!initial.isPublicHttps()) {
-            return@withContext unreadable(url, "For safety, Let’sStudy only reads public HTTPS job pages.")
+            return@withContext unreadable(url, "For safety, LetsStudy only reads public HTTPS job pages.")
         }
 
         try {
@@ -140,9 +140,9 @@ class JobOfferReader internal constructor(
         } catch (_: UnknownHostException) {
             unreadable(url, "This link points to a private or unavailable address.")
         } catch (_: IOException) {
-            unreadable(url, "Let’sStudy couldn’t load this page. Check your connection or paste the job description.")
+            unreadable(url, "LetsStudy couldn’t load this page. Check your connection or paste the job description.")
         } catch (_: Exception) {
-            unreadable(url, "Let’sStudy couldn’t read this page. Paste the job description instead.")
+            unreadable(url, "LetsStudy couldn’t read this page. Paste the job description instead.")
         }
     }
 
@@ -314,7 +314,7 @@ class JobOfferReader internal constructor(
         val lowerText = document.text().lowercase()
         return when {
             listOf("verify you are human", "checking your browser", "captcha", "enable javascript to continue")
-                .any(lowerText::contains) -> "This page uses a browser check that Let’sStudy can’t pass. Paste the job description instead."
+                .any(lowerText::contains) -> "This page uses a browser check that LetsStudy can’t pass. Paste the job description instead."
             listOf("sign in to continue", "log in to continue", "login required", "access denied")
                 .any(lowerText::contains) -> "This job page requires sign-in or blocks automated reading. Paste the job description instead."
             else -> null

@@ -35,6 +35,9 @@ ui-debug.log
 Thumbs.db
 *.swp
 
-# Codex/Superpowers task state and internal planning notes
-.superpowers/
-docs/superpowers/
+# Local-only planning notes
+/.local-notes/
+/docs/local-notes/
+
+# Temporary local files
+/tmp/

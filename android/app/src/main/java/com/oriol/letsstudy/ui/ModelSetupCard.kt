@@ -220,7 +220,7 @@ fun ModelSetupCard(
                     Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text("Let'sStudy downloads Gemma 4 E2B instruction-tuned, converted to LiteRT-LM format by litert-community. Model author: Google DeepMind.")
+                    Text("LetsStudy downloads Gemma 4 E2B instruction-tuned, converted to LiteRT-LM format by litert-community. Model author: Google DeepMind.")
                     Text("The model is licensed under Apache License 2.0. The full license text is included below and bundled with the app.")
                     Text(licenseText, style = MaterialTheme.typography.bodySmall)
                 }

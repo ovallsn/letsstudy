@@ -2,7 +2,6 @@ package com.oriol.letsstudy.ai
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.nimbusds.jose.JWSAlgorithm
@@ -14,9 +13,11 @@ import com.nimbusds.jwt.SignedJWT
 import com.nimbusds.jwt.proc.DefaultJWTProcessor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import androidx.core.net.toUri
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -25,6 +26,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okio.Buffer
 import java.io.IOException
 import java.net.URI
+import java.net.UnknownHostException
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -74,7 +76,7 @@ class AndroidOAuthBrowserLauncher(context: Context) : OAuthBrowserLauncher {
 
     override fun open(url: String) {
         applicationContext.startActivity(
-            Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
     }
 }
@@ -90,10 +92,20 @@ enum class ChatGptOAuthFailure {
     INVALID_RESPONSE,
 }
 
+enum class ChatGptOAuthStage {
+    DISCOVERY,
+    CALLBACK_LISTENER,
+    BROWSER,
+    CALLBACK,
+    TOKEN_EXCHANGE,
+    IDENTITY_VERIFICATION,
+}
+
 class ChatGptOAuthException(
     val failure: ChatGptOAuthFailure,
     val requestId: String? = null,
     cause: Throwable? = null,
+    val stage: ChatGptOAuthStage? = null,
 ) : Exception(failure.messageForUser(), cause)
 
 internal class OpenAiChatGptOAuthClient(
@@ -114,11 +126,11 @@ internal class OpenAiChatGptOAuthClient(
     override suspend fun connect(existing: OAuthAuthorizationResult?): OAuthAuthorizationResult {
         val hostId = hostIdProvider().takeIf(::isValidHostId)
             ?: throw ChatGptOAuthException(ChatGptOAuthFailure.INVALID_RESPONSE)
-        val discovery = loadDiscovery()
+        val discovery = atStage(ChatGptOAuthStage.DISCOVERY) { loadDiscovery() }
         val callbackServer = try {
             callbackServerFactory()
         } catch (error: Exception) {
-            throw ChatGptOAuthException(ChatGptOAuthFailure.NETWORK)
+            throw ChatGptOAuthException(ChatGptOAuthFailure.NETWORK, cause = error, stage = ChatGptOAuthStage.CALLBACK_LISTENER)
         }
         try {
             val state = randomUrlSafeString()
@@ -139,37 +151,35 @@ internal class OpenAiChatGptOAuthClient(
             try {
                 browserLauncher.open(attempt.authorizationUrl)
             } catch (error: Exception) {
-                throw ChatGptOAuthException(ChatGptOAuthFailure.NETWORK)
+                throw ChatGptOAuthException(ChatGptOAuthFailure.NETWORK, cause = error, stage = ChatGptOAuthStage.BROWSER)
             }
-            val callback = try {
+            val callback = atStage(ChatGptOAuthStage.CALLBACK, ChatGptOAuthFailure.NETWORK) {
                 callbackServer.awaitCallback()
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: ChatGptOAuthException) {
-                throw error
-            } catch (error: Exception) {
-                throw ChatGptOAuthException(ChatGptOAuthFailure.NETWORK)
             }
-            val callbackValues = validateCallback(callback, attempt, existing)
+            val callbackValues = atStage(ChatGptOAuthStage.CALLBACK) { validateCallback(callback, attempt, existing) }
             val issuedClientId = callbackValues.clientId
-            val tokenResponse = postForm(
-                url = discovery.tokenEndpoint,
-                fields = listOf(
-                    "grant_type" to "authorization_code",
-                    "client_id" to issuedClientId,
-                    "code" to callbackValues.code,
-                    "code_verifier" to attempt.codeVerifier,
-                    "redirect_uri" to attempt.redirectUri,
-                    "resource" to API_RESOURCE,
-                ),
-            )
+            val tokenResponse = atStage(ChatGptOAuthStage.TOKEN_EXCHANGE) {
+                postForm(
+                    url = discovery.tokenEndpoint,
+                    fields = listOf(
+                        "grant_type" to "authorization_code",
+                        "client_id" to issuedClientId,
+                        "code" to callbackValues.code,
+                        "code_verifier" to attempt.codeVerifier,
+                        "redirect_uri" to attempt.redirectUri,
+                        "resource" to API_RESOURCE,
+                    ),
+                )
+            }
             val scopes = parseScopes(tokenResponse.json, required = true).intersect(REQUESTED_SCOPE_SET)
             if (!scopes.contains(PLAN_USE_SCOPE)) {
                 throw ChatGptOAuthException(ChatGptOAuthFailure.NOT_ELIGIBLE, tokenResponse.requestId)
             }
             val idToken = tokenResponse.json.stringValue("id_token")
                 ?: throw ChatGptOAuthException(ChatGptOAuthFailure.INVALID_RESPONSE, tokenResponse.requestId)
-            val subject = validateIdToken(idToken, issuedClientId, attempt.nonce, discovery.jwksUri)
+            val subject = atStage(ChatGptOAuthStage.IDENTITY_VERIFICATION) {
+                validateIdToken(idToken, issuedClientId, attempt.nonce, discovery.jwksUri)
+            }
             if (existing != null && subject != existing.subject) {
                 throw ChatGptOAuthException(ChatGptOAuthFailure.AUTH_REQUIRED, tokenResponse.requestId)
             }
@@ -269,6 +279,21 @@ internal class OpenAiChatGptOAuthClient(
             ?: throw ChatGptOAuthException(ChatGptOAuthFailure.INVALID_RESPONSE, response.requestId)
         listOf(authorizationEndpoint, tokenEndpoint, revocationEndpoint, jwksUri).forEach(::validateServiceUrl)
         Discovery(authorizationEndpoint, tokenEndpoint, revocationEndpoint, jwksUri)
+    }
+
+    private suspend fun <T> atStage(
+        stage: ChatGptOAuthStage,
+        unexpectedFailure: ChatGptOAuthFailure = ChatGptOAuthFailure.INVALID_RESPONSE,
+        operation: suspend () -> T,
+    ): T = try {
+        operation()
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: ChatGptOAuthException) {
+        if (error.stage != null) throw error
+        throw ChatGptOAuthException(error.failure, error.requestId, error.cause, stage)
+    } catch (error: Exception) {
+        throw ChatGptOAuthException(unexpectedFailure, stage = stage, cause = error)
     }
 
     private fun buildAuthorizationAttempt(
@@ -411,17 +436,28 @@ internal class OpenAiChatGptOAuthClient(
         return response
     }
 
-    private suspend fun execute(request: Request): JsonResponse = withContext(Dispatchers.IO) {
-        try {
-            httpClient.newCall(request).execute().use(::readResponse)
-        } catch (error: ChatGptOAuthException) {
-            throw error
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: IOException) {
-            throw ChatGptOAuthException(ChatGptOAuthFailure.NETWORK)
-        } catch (error: Exception) {
-            throw ChatGptOAuthException(ChatGptOAuthFailure.INVALID_RESPONSE)
+    private suspend fun execute(request: Request): JsonResponse {
+        var dnsRetry = 0
+        while (true) {
+            try {
+                return withContext(Dispatchers.IO) {
+                    httpClient.newCall(request).execute().use(::readResponse)
+                }
+            } catch (error: ChatGptOAuthException) {
+                throw error
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: UnknownHostException) {
+                if (dnsRetry == DNS_RETRY_DELAYS_MILLIS.size) {
+                    throw ChatGptOAuthException(ChatGptOAuthFailure.NETWORK, cause = error)
+                }
+                dnsRetry += 1
+                delay(DNS_RETRY_DELAYS_MILLIS[dnsRetry - 1])
+            } catch (error: IOException) {
+                throw ChatGptOAuthException(ChatGptOAuthFailure.NETWORK, cause = error)
+            } catch (error: Exception) {
+                throw ChatGptOAuthException(ChatGptOAuthFailure.INVALID_RESPONSE)
+            }
         }
     }
 
@@ -581,6 +617,7 @@ internal class OpenAiChatGptOAuthClient(
         private const val REFRESH_SKEW_MILLIS = 30_000L
         private const val MAX_RESPONSE_BYTES = 1_048_576
         private const val RESPONSE_READ_CHUNK_BYTES = 8_192L
+        private val DNS_RETRY_DELAYS_MILLIS = longArrayOf(500L, 1_000L, 2_000L, 4_000L, 8_000L)
         private val REQUESTED_SCOPES = listOf("openid", "offline_access", "resource.invoke", PLAN_USE_SCOPE)
         private val REQUESTED_SCOPE_SET = REQUESTED_SCOPES.toSet()
     }

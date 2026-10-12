@@ -53,11 +53,7 @@ val LocalWorkspaceHeaderActions = staticCompositionLocalOf { WorkspaceHeaderActi
 
 @Composable
 fun StudyStreakChip(days: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val label = when (days) {
-        0 -> "Start today"
-        1 -> "1 day streak"
-        else -> "$days day streak"
-    }
+    val label = studyStreakLabel(days)
     Surface(
         onClick = onClick,
         modifier = modifier,
@@ -255,20 +251,27 @@ fun WorkspaceSelect(label: String, value: String, options: List<String>, onSelec
     }
 }
 
-fun generationModeLabel(mode: String): String = if (mode == "ONLINE") "Quick online" else "On this phone"
-
-fun generationModeValue(label: String): String = if (label == "Quick online") "ONLINE" else "OFFLINE"
+internal fun studyStreakLabel(days: Int, includeStudy: Boolean = false): String {
+    val count = days.coerceAtLeast(0)
+    return if (includeStudy) "$count-day study streak" else "$count-day streak"
+}
 
 @Composable
-fun WorkspaceGenerationModeSelector(mode: String, onModeChange: (String) -> Unit) {
+fun WorkspaceGenerationModeSelector(mode: String, chatGptConnected: Boolean = false, onModeChange: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        val selectedLabel = if (mode.equals("CHATGPT", ignoreCase = true) && !chatGptConnected) {
+            "Reconnect ChatGPT in Settings"
+        } else {
+            generationModeLabel(mode)
+        }
         WorkspaceSelect(
-            "Question generation",
-            generationModeLabel(mode),
-            listOf("Quick online", "On this phone"),
+            "AI provider",
+            selectedLabel,
+            generationModeOptions(chatGptConnected),
         ) { onModeChange(generationModeValue(it)) }
-        if (mode != "ONLINE") {
-            Text("Needs a one-time download. Creating a set may take longer.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+        when {
+            mode.equals("CHATGPT", ignoreCase = true) && !chatGptConnected -> Text("Reconnect ChatGPT in Settings to use it for new study requests.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+            mode.equals("OFFLINE", ignoreCase = true) || mode.equals("ON_DEVICE", ignoreCase = true) -> Text("Needs a one-time download. Creating a set may take longer.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
         }
     }
 }
@@ -284,8 +287,14 @@ fun WorkspaceGenerationModeSelector(mode: String, onModeChange: (String) -> Unit
 }
 
 fun epochDay(time: Long): LocalDate = java.time.Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).toLocalDate()
+private const val MINIMUM_DAILY_STUDY_SECONDS_FOR_STREAK = 5 * 60L
+
 fun studyStreak(questions: List<StudyQuestionEntity>, activity: List<StudyActivityEntity>): Int {
-    val days = questions.filter { it.answeredAt > 0 }.map { epochDay(it.answeredAt) }.toSet() + activity.map { epochDay(it.startedAt) }
+    val answeredDays = questions.filter { it.answeredAt > 0 }.map { epochDay(it.answeredAt) }.toSet()
+    val focusedStudyDays = activity.groupBy { epochDay(it.startedAt) }
+        .filterValues { sessions -> sessions.sumOf { it.durationSeconds.coerceAtLeast(0) } >= MINIMUM_DAILY_STUDY_SECONDS_FOR_STREAK }
+        .keys
+    val days = answeredDays + focusedStudyDays
     var day = LocalDate.now()
     if (day !in days) day = day.minusDays(1)
     var count = 0

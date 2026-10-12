@@ -1,4 +1,4 @@
-Let'sStudy uses Gemma 4 E2B instruction-tuned, converted to LiteRT-LM format by litert-community.
+LetsStudy uses Gemma 4 E2B instruction-tuned, converted to LiteRT-LM format by litert-community.
 Gemma 4 is authored by Google DeepMind and is licensed under the Apache License, Version 2.0.
 The complete Apache License, Version 2.0 is included at licenses/Apache-2.0.txt.
 
@@ -7,4 +7,4 @@ Nimbus JOSE+JWT 10.10 is licensed under the Apache License, Version 2.0.
 The model weights are downloaded by the user at runtime from the public Hugging Face repository:
 https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm
 
-Let'sStudy is an independent project and is not endorsed by Google DeepMind.
+LetsStudy is an independent project and is not endorsed by Google DeepMind.

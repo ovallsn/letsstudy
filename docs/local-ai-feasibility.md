@@ -1,4 +1,4 @@
-# IA local para Let’sStudy: viabilidad y validación
+# IA local para LetsStudy: viabilidad y validación
 
 > Documento histórico de la etapa exclusivamente local. La app actual añade generación rápida con Firebase AI Logic y conserva la IA en el móvil como alternativa. Consulta el [README](../README.md) y la [arquitectura actual](architecture.md).
 
@@ -6,7 +6,7 @@ Fecha de actualización: 2026-10-06. Estado: prototipo implementado y APK de dep
 
 ## Resultado hasta ahora
 
-La arquitectura es viable para probar sin cuentas de IA, claves, cuotas de proveedor ni backend de inferencia. Let’sStudy incorpora descarga dentro de la app y una ruta local para crear tandas, evaluar respuestas y guardar sesiones. El teléfono solo necesita conexión para descargar el modelo por primera vez y para leer una oferta pública desde su URL.
+La arquitectura es viable para probar sin cuentas de IA, claves, cuotas de proveedor ni backend de inferencia. LetsStudy incorpora descarga dentro de la app y una ruta local para crear tandas, evaluar respuestas y guardar sesiones. El teléfono solo necesita conexión para descargar el modelo por primera vez y para leer una oferta pública desde su URL.
 
 Verificaciones de software completadas:
 
@@ -39,7 +39,7 @@ Esos valores son una foto puntual de capacidad libre y no garantizan que el moto
 
 ## Qué debe probarse ahora
 
-1. Desbloquear el teléfono y abrir Let’sStudy; en la tarjeta **Set up your study model**, pulsar **Download on Wi‑Fi** si se acepta la descarga grande.
+1. Desbloquear el teléfono y abrir LetsStudy; en la tarjeta **Set up your study model**, pulsar **Download on Wi‑Fi** si se acepta la descarga grande.
 2. Esperar a que la app termine y verifique el modelo. La descarga es reanudable y tiene notificación de progreso.
 3. Pegar una descripción de oferta o introducir una URL pública. Si la página está bloqueada, usar **Paste text**.
 4. Crear la primera tanda; confirmar 15 preguntas en el idioma elegido, respuestas y feedback local.

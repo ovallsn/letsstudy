@@ -2,7 +2,7 @@
 
 ## Native Study Workspace (1.0)
 
-`MainActivity` opens `StudyWorkspaceApp`, which owns five bottom destinations and drawer routes. `WorkspaceHome`, `WorkspaceLibrary` and `WorkspacePractice` use shared Compose primitives and MagicPath typography/color tokens. Older screens remain but are not the main workspace entry point.
+`MainActivity` opens `StudyWorkspaceApp`, which owns five bottom destinations and drawer routes. `WorkspaceHome`, `WorkspaceLibrary` and `WorkspacePractice` use shared Compose primitives and the app's typography and color tokens. Older screens remain but are not the main workspace entry point.
 
 `LetsStudyViewModel` owns cancellable generation jobs, synchronous submission guards and Room observers. `StudyWorkspace` validates topic plans, nine practice formats, feedback and tutor output before saving. Online rounds use one request; local rounds use five-question batches. Tutor always uses explicit online generation. Pending written answers and tutor messages survive failed requests.
 

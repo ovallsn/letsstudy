@@ -50,6 +50,18 @@ class StudyWorkspaceTest {
         assertEquals(12345L, dao.getSession("study")?.lastOpenedAt)
     }
 
+    @Test fun legacyPathModulesWithoutLessonFieldsLoadWithEmptyLessonText() {
+        val legacySession = session().copy(
+            modulesJson = """[{"id":"module-0","title":"C2 vocabulary","outcome":"Use precise language"}]""",
+        )
+
+        val module = legacySession.modules().single()
+
+        assertEquals("", module.theory)
+        assertEquals("", module.example)
+        assertEquals("", module.commonMistake)
+    }
+
     @Test fun topicPlanIsValidatedAndSavedWithModules() = runBlocking {
         val dao = StudyRepositoryTest.FakeStudyDao()
         val plan = """{"title":"Systems foundations","summary":"Learn practical diagnostics","modules":[{"title":"DNS","outcome":"Resolve names","theory":"DNS maps readable hostnames to network addresses so clients can find services.","example":"A lookup for example.org returns its address records.","commonMistake":"Changing a DNS record does not instantly update every cache."},{"title":"TLS","outcome":"Diagnose certificates","theory":"TLS protects data in transit and verifies a server with a certificate.","example":"A browser checks that the certificate matches the requested domain."},{"title":"Linux","outcome":"Inspect evidence","theory":"Linux exposes processes and network state through commands and virtual filesystems.","example":"Use ss -lntp to inspect listening TCP ports.","commonMistake":"A listening port does not prove that a remote firewall allows access."}]}"""

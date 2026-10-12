@@ -1,5 +1,6 @@
 package com.oriol.letsstudy.ui
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -14,6 +15,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,6 +30,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
+    val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var destination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
     var initialTopic by rememberSaveable { mutableStateOf("") }
@@ -45,14 +49,30 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
     var awaitingNew by rememberSaveable { mutableStateOf(false) }
     var sessionBefore by rememberSaveable { mutableStateOf<String?>(null) }
     var onlineAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var chatGptAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     val moreRoutes = setOf(AppDestination.HISTORY, AppDestination.SAVED, AppDestination.REVIEW_DUE, AppDestination.LANGUAGE_CHECK, AppDestination.NOTIFICATIONS, AppDestination.LEADERBOARD, AppDestination.SETTINGS)
     LaunchedEffect(destination) { moreExpanded = destination in moreRoutes }
     val busy = state.isAnalyzing || state.isGenerating || state.workspaceBusy
     val menu: () -> Unit = { scope.launch { drawer.open() } }
-    val online: (String, () -> Unit) -> Unit = { mode, action ->
-        if (mode == "ONLINE" && !state.settings.onlineDisclosureAccepted) onlineAction = action else action()
+    val runWithProvider: (String, () -> Unit) -> Unit = { mode, action ->
+        when (mode.uppercase()) {
+            "ONLINE" -> if (!state.settings.onlineDisclosureAccepted) onlineAction = action else action()
+            "CHATGPT" -> when {
+                !state.chatGptConnected -> viewModel.showError("Connect ChatGPT in Settings before choosing it for study generation.")
+                shouldShowChatGptDisclosure(mode, state.settings.chatGptDisclosureAccepted) -> chatGptAction = action
+                else -> action()
+            }
+            else -> action()
+        }
+    }
+    LaunchedEffect(state.studyAiNotice) {
+        state.studyAiNotice?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearStudyAiNotice()
+        }
     }
     val navigate: (AppDestination) -> Unit = { next ->
         if (next == AppDestination.LANGUAGE_CHECK) { checkLanguage = ""; checkCurrentLevel = ""; checkRunId++ }
@@ -110,7 +130,7 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
                     item {
                         Row(Modifier.padding(horizontal = 10.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(40.dp))
-                            Column { Text("let’sstudy", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text("A little wiser, every day.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted) }
+                            Column { Text("LetsStudy", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text("A little wiser, every day.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted) }
                         }
                     }
                     val mainEntries = listOf(
@@ -155,21 +175,21 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
         }
     }) {
         CompositionLocalProvider(LocalWorkspaceHeaderActions provides headerActions) {
-            Scaffold(containerColor = LetsStudyColors.Canvas, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            Scaffold(containerColor = LetsStudyColors.Canvas, snackbarHost = { SnackbarHost(snackbarHostState) }, contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
                 bottomBar = { if (state.selectedQuestion == null && !showTutor) AppBottomNavigation(destination, navigate) }) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
                     when {
-                        showTutor && state.activeSession != null -> WorkspaceTutor(state, tutorQuestion, { showTutor = false }) { message -> online("ONLINE") { viewModel.askTutor(message, tutorQuestion) } }
+                        showTutor && state.activeSession != null -> WorkspaceTutor(state, tutorQuestion, { showTutor = false }) { message -> runWithProvider(state.settings.mode) { viewModel.askTutor(message, tutorQuestion) } }
                         state.selectedQuestion != null && state.activeSession != null -> WorkspacePractice(state, viewModel,
-                            onTutor = { tutorQuestion = true; showTutor = true }, onLesson = { online("ONLINE", viewModel::requestConceptLesson) },
+                            onTutor = { tutorQuestion = true; showTutor = true }, onLesson = { runWithProvider(state.activeSession?.generationMode ?: state.settings.mode, viewModel::requestConceptLesson) },
                             onAnswer = { answer ->
                                 if (state.selectedQuestion?.format == com.oriol.letsstudy.data.PracticeFormat.FILL_BLANK.name) viewModel.answerPractice(answer)
-                                else online(state.activeSession!!.generationMode) { viewModel.answerPractice(answer) }
+                                else runWithProvider(state.activeSession!!.generationMode) { viewModel.answerPractice(answer) }
                             })
                         destination == AppDestination.SESSION && state.activeSession != null -> WorkspaceStudyPath(state, viewModel, menu,
                             onTutor = { tutorQuestion = false; showTutor = true },
                             onProgressCheck = openLanguageCheck,
-                            onGenerate = { format, module, mode, interview -> online(mode) { viewModel.addPractice(format, module, interview, mode) } })
+                            onGenerate = { format, module, mode, interview -> runWithProvider(mode) { viewModel.addPractice(format, module, interview, mode) } })
                         destination in listOf(AppDestination.LIBRARY, AppDestination.JOBS, AppDestination.HISTORY) -> WorkspaceLibrary(state,
                             when (destination) { AppDestination.JOBS -> "JOB"; AppDestination.HISTORY -> "HISTORY"; else -> "ALL" }, menu, open) { pendingDeleteId = it }
                         destination == AppDestination.SAVED -> WorkspaceSaved(state, menu, { question -> destination = AppDestination.SESSION; viewModel.openSavedQuestion(question) }, viewModel::removeSavedMark)
@@ -191,9 +211,9 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
                         destination == AppDestination.LEADERBOARD -> WorkspaceLeaderboard(state, viewModel, menu)
                         destination == AppDestination.SETTINGS -> WorkspaceSettings(state, viewModel, menu)
                         destination == AppDestination.NEW_STUDY -> WorkspaceNewStudy(menu, { topic("") }, { destination = AppDestination.JOB_PREP }, material)
-                        destination == AppDestination.JOB_PREP -> WorkspaceJobPreparation(state, menu) { input, language, mode -> online(mode) { beginNew(); viewModel.analyze(input, language, mode) } }
+                        destination == AppDestination.JOB_PREP -> WorkspaceJobPreparation(state, menu) { input, language, mode -> runWithProvider(mode) { beginNew(); viewModel.analyze(input, language, mode) } }
                         destination == AppDestination.TOPIC || destination == AppDestination.MATERIAL -> WorkspaceTopicSetup(state, initialTopic,
-                            destination == AppDestination.MATERIAL, menu, viewModel::importMaterial, { setup -> online(setup.mode) { beginNew(); viewModel.createStudy(setup) } }, initialLevel, initialLanguage, initialGoal, initialKind)
+                            destination == AppDestination.MATERIAL, menu, viewModel::importMaterial, { setup -> runWithProvider(setup.mode) { beginNew(); viewModel.createStudy(setup) } }, initialLevel, initialLanguage, initialGoal, initialKind)
                         else -> WorkspaceHome(state, menu, topic, { destination = AppDestination.JOB_PREP }, open, { destination = AppDestination.PROGRESS }, { destination = AppDestination.LANGUAGE_CHECK }) { destination = AppDestination.REVIEW_DUE }
                     }
                 }
@@ -205,6 +225,18 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
         confirmButton = { TextButton({ viewModel.deleteSession(pendingDelete.id); pendingDeleteId = null }) { Text("Delete") } }, dismissButton = { TextButton({ pendingDeleteId = null }) { Text("Keep study") } })
     if (onlineAction != null) AlertDialog(onDismissRequest = { onlineAction = null }, title = { Text("Study online?") }, text = { Text("To prepare your study, the material you provide and any answers or messages you submit are sent to Google for processing. The service has shared usage limits and may sometimes be unavailable. Your saved studies stay available on this phone.") },
         confirmButton = { TextButton({ viewModel.saveSettings(state.settings.copy(onlineDisclosureAccepted = true)); val action = onlineAction; onlineAction = null; action?.invoke() }) { Text("Continue") } }, dismissButton = { TextButton({ onlineAction = null }) { Text("Cancel") } })
+    if (chatGptAction != null) AlertDialog(
+        onDismissRequest = { chatGptAction = null },
+        title = { Text("Use ChatGPT for study?") },
+        text = { Text("The study material you provide, your answers and tutor messages for this action will be sent to OpenAI. This uses the eligible ChatGPT plan allowance on the account you connected; availability and limits depend on that account. You can check it in ChatGPT Settings → Usage. Your Let’sStudy account and saved studies are separate.") },
+        confirmButton = { TextButton({
+            viewModel.saveSettings(state.settings.copy(chatGptDisclosureAccepted = true))
+            val action = chatGptAction
+            chatGptAction = null
+            action?.invoke()
+        }) { Text("Continue with ChatGPT") } },
+        dismissButton = { TextButton({ chatGptAction = null }) { Text("Cancel") } },
+    )
     if (busy) Dialog(onDismissRequest = {}) {
         WorkspaceCard {
             CircularProgressIndicator(Modifier.size(34.dp))
@@ -214,7 +246,34 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
             TextButton({ awaitingNew = false; viewModel.cancelGeneration() }) { Text("Cancel") }
         }
     }
-    if (!busy && state.errorMessage != null) AlertDialog(onDismissRequest = viewModel::clearError, title = { Text("Let's try that again") }, text = { Text(state.errorMessage!!) }, confirmButton = { TextButton(viewModel::clearError) { Text("Got it") } })
+    if (!busy && state.errorMessage != null) {
+        val recoveryActions = chatGptRecoveryActions(
+            usageLimitReached = state.chatGptUsageLimitReached,
+            localFallbackEnabled = state.settings.localFallbackOnChatGptLimit,
+            localModelAvailable = state.modelState == com.oriol.letsstudy.ai.ModelState.Ready || state.modelState == com.oriol.letsstudy.ai.ModelState.Available,
+        )
+        AlertDialog(
+            onDismissRequest = viewModel::clearError,
+            title = { Text(if (state.chatGptUsageLimitReached) "ChatGPT usage limit reached" else "Let's try that again") },
+            text = {
+                Text(if (state.chatGptUsageLimitReached && state.pendingLocalFallback) {
+                    "Your study request is still here. The on-device model is about ${com.oriol.letsstudy.ai.ModelCatalog.DISPLAY_SIZE}; downloading starts on Wi‑Fi by default."
+                } else state.errorMessage!!)
+            },
+            confirmButton = {
+                when {
+                    ChatGptRecoveryAction.CONTINUE_ON_DEVICE in recoveryActions -> TextButton({ viewModel.resumePendingGeneration() }) { Text("Continue on this phone") }
+                    ChatGptRecoveryAction.DOWNLOAD_ON_DEVICE in recoveryActions -> TextButton({ viewModel.downloadModel(); navigate(AppDestination.SETTINGS) }) { Text("Download model") }
+                    ChatGptRecoveryAction.OPEN_SETTINGS in recoveryActions -> TextButton({ viewModel.clearError(); navigate(AppDestination.SETTINGS) }) { Text("Settings") }
+                }
+                if (ChatGptRecoveryAction.MANAGE_USAGE in recoveryActions) TextButton({
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, "https://chatgpt.com/#settings/Usage".toUri())) }
+                }) { Text("Manage usage") }
+                TextButton(viewModel::clearError) { Text("Got it") }
+            },
+            dismissButton = null,
+        )
+    }
 }
 
 @Composable

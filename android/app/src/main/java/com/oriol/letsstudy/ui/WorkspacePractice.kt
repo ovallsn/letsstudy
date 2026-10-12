@@ -126,7 +126,7 @@ fun WorkspaceStudyPath(state: LetsStudyUiState, viewModel: LetsStudyViewModel, o
             WorkspaceCard {
                 Text(if (selectedModule == null) "Keep your curiosity moving" else "Practise ${selectedModule.title}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 WorkspaceSelect("Practice format", PracticeFormat.valueOf(selectedFormat).label, PracticeFormat.entries.map { it.label }) { label -> selectedFormat = PracticeFormat.entries.first { it.label == label }.name }
-                WorkspaceGenerationModeSelector(mode) { mode = it }
+                WorkspaceGenerationModeSelector(mode, state.chatGptConnected) { mode = it }
                 Button({ onGenerate(PracticeFormat.valueOf(selectedFormat), selectedModule, mode, false) }, Modifier.fillMaxWidth(), enabled = !state.workspaceBusy && !state.isGenerating) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text("Add 15 new questions") }
             }
         }
@@ -222,7 +222,7 @@ fun WorkspacePractice(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
                     WorkspaceField(answer, { answer = it }, if (question.format == PracticeFormat.FILL_BLANK.name) "Missing term" else "Your answer", if (question.format == PracticeFormat.FILL_BLANK.name) 1 else 5)
                     if (question.format == PracticeFormat.INTERVIEW.name) {
                         OutlinedButton({ permission.launch(Manifest.permission.RECORD_AUDIO) }, enabled = !state.workspaceBusy) { Icon(Icons.Outlined.Mic, null); Text("Dictate answer") }
-                        Text("Uses your phone's speech service; audio may be processed online. Let’sStudy saves only the transcript.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                        Text("Uses your phone's speech service; audio may be processed online. LetsStudy saves only the transcript.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                         speechError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     }
                     Button({ onAnswer(answer.trim()); revealed = true }, enabled = answer.isNotBlank() && !state.workspaceBusy, modifier = Modifier.fillMaxWidth()) { Text(if (question.format == PracticeFormat.FILL_BLANK.name) "Check answer" else if (question.answeredAt > 0) "Review my answer again" else "Get feedback") }

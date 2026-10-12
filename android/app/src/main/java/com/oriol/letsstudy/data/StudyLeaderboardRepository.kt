@@ -18,6 +18,7 @@ data class StudyLeaderboardEntry(
     val displayName: String,
     val weeklyPoints: Int,
     val avatarThumbnail: ByteArray? = null,
+    val currentStreakDays: Int = 0,
 )
 
 data class StudyLeaderboardState(
@@ -37,6 +38,7 @@ data class LeaderboardEnrollment(
     val weekKey: String,
     val photoShared: Boolean = false,
     val avatarThumbnail: ByteArray? = null,
+    val currentStreakDays: Int = 0,
 )
 
 class StudyLeaderboardRepository(
@@ -66,19 +68,12 @@ class StudyLeaderboardRepository(
             photoShared = photoShared,
             myEntryId = entryId.takeIf { enabled },
             entries = query.documents.mapNotNull { document ->
-                val displayName = document.getString("displayName").orEmpty()
-                if (!UsernamePolicy.isAllowed(displayName)) return@mapNotNull null
-                StudyLeaderboardEntry(
-                    id = document.id,
-                    displayName = displayName,
-                    weeklyPoints = document.getLong("weeklyPoints")?.toInt() ?: 0,
-                    avatarThumbnail = document.getBlob("avatarThumb")?.toBytes(),
-                )
+                leaderboardEntryFromData(document.id, document.data.orEmpty())
             },
         )
     }
 
-    suspend fun optIn(displayName: String, weeklyPoints: Int, avatarThumbnail: ByteArray?) {
+    suspend fun optIn(displayName: String, weeklyPoints: Int, avatarThumbnail: ByteArray?, currentStreakDays: Int) {
         val uid = auth.currentUser?.uid ?: throw IllegalStateException("Sign in before joining the community board.")
         val nickname = safeDisplayName(displayName)
         val settings = settingsReference(uid).get().await()
@@ -96,11 +91,12 @@ class StudyLeaderboardRepository(
                 weekKey = weekKey,
                 photoShared = avatarThumbnail != null,
                 avatarThumbnail = avatarThumbnail,
+                currentStreakDays = currentStreakDays.coerceIn(0, MAX_STREAK_DAYS),
             ),
         )
     }
 
-    suspend fun publishCurrentScore(weeklyPoints: Int) {
+    suspend fun publishCurrentScore(weeklyPoints: Int, currentStreakDays: Int) {
         val uid = auth.currentUser?.uid ?: return
         val settings = settingsReference(uid).get().await()
         if (settings.getBoolean("enabled") != true) return
@@ -113,15 +109,28 @@ class StudyLeaderboardRepository(
         val score = maxOf(weeklyPoints.coerceIn(0, MAX_WEEKLY_POINTS), previousScore)
         val avatarThumbnail = publicEntry.getBlob("avatarThumb")?.toBytes()
         val photoShared = settings.getBoolean("sharePhoto") == true && avatarThumbnail != null
+        val streak = currentStreakDays.coerceIn(0, MAX_STREAK_DAYS)
         if (publicEntry.getString("displayName") == nickname
             && publicEntry.getLong("weeklyPoints")?.toInt() == score
             && publicEntry.getString("weekKey") == weekKey
+            && publicEntry.getLong("currentStreakDays")?.toInt() == streak
             && (publicEntry.getBlob("avatarThumb") != null) == photoShared
         ) return
-        saveEnrollment(uid, LeaderboardEnrollment(entryId, nickname, score, weekKey, photoShared, avatarThumbnail))
+        saveEnrollment(
+            uid,
+            LeaderboardEnrollment(
+                entryId = entryId,
+                displayName = nickname,
+                weeklyPoints = score,
+                weekKey = weekKey,
+                photoShared = photoShared,
+                avatarThumbnail = avatarThumbnail,
+                currentStreakDays = streak,
+            ),
+        )
     }
 
-    suspend fun setPhotoSharing(enabled: Boolean, avatarThumbnail: ByteArray?, weeklyPoints: Int) {
+    suspend fun setPhotoSharing(enabled: Boolean, avatarThumbnail: ByteArray?, weeklyPoints: Int, currentStreakDays: Int) {
         val uid = auth.currentUser?.uid ?: throw IllegalStateException("Sign in to change your community board settings.")
         val settings = settingsReference(uid).get().await()
         if (settings.getBoolean("enabled") != true) throw IllegalStateException("Join the community board before sharing a profile photo.")
@@ -147,6 +156,7 @@ class StudyLeaderboardRepository(
                 weekKey = weekKey,
                 photoShared = enabled,
                 avatarThumbnail = avatarThumbnail.takeIf { enabled },
+                currentStreakDays = currentStreakDays.coerceIn(0, MAX_STREAK_DAYS),
             ),
         )
     }
@@ -180,6 +190,7 @@ class StudyLeaderboardRepository(
             weekKey = current.getString("weekKey")?.takeIf(String::isNotBlank) ?: currentWeekKey(),
             photoShared = settings.getBoolean("sharePhoto") == true && current.getBlob("avatarThumb") != null,
             avatarThumbnail = current.getBlob("avatarThumb")?.toBytes(),
+            currentStreakDays = current.getLong("currentStreakDays")?.toInt()?.coerceIn(0, MAX_STREAK_DAYS) ?: 0,
         )
         firestore.batch().apply {
             delete(publicRef)
@@ -200,6 +211,7 @@ class StudyLeaderboardRepository(
             "displayName" to enrollment.displayName,
             "weeklyPoints" to enrollment.weeklyPoints,
             "weekKey" to enrollment.weekKey,
+            "currentStreakDays" to enrollment.currentStreakDays.coerceIn(0, MAX_STREAK_DAYS),
         )
         if (enrollment.photoShared && enrollment.avatarThumbnail != null) {
             publicEntry["avatarThumb"] = Blob.fromBytes(enrollment.avatarThumbnail)
@@ -238,7 +250,24 @@ class StudyLeaderboardRepository(
 
     companion object {
         const val MAX_WEEKLY_POINTS = 500
+        const val MAX_STREAK_DAYS = 36500
         private const val OWNER_COLLECTION = "leaderboardOwners"
         private const val PUBLIC_COLLECTION = "publicLeaderboard"
     }
+}
+
+internal fun leaderboardEntryFromData(id: String, fields: Map<String, Any?>): StudyLeaderboardEntry? {
+    val displayName = fields["displayName"] as? String ?: return null
+    if (!UsernamePolicy.isAllowed(displayName)) return null
+    val weeklyPoints = (fields["weeklyPoints"] as? Number)?.toInt()?.coerceIn(0, StudyLeaderboardRepository.MAX_WEEKLY_POINTS) ?: 0
+    val currentStreakDays = (fields["currentStreakDays"] as? Number)?.toInt()
+        ?.coerceIn(0, StudyLeaderboardRepository.MAX_STREAK_DAYS) ?: 0
+    val avatarThumbnail = (fields["avatarThumb"] as? Blob)?.toBytes()
+    return StudyLeaderboardEntry(
+        id = id,
+        displayName = displayName,
+        weeklyPoints = weeklyPoints,
+        avatarThumbnail = avatarThumbnail,
+        currentStreakDays = currentStreakDays,
+    )
 }

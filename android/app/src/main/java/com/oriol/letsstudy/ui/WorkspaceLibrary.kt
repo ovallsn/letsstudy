@@ -2,6 +2,8 @@ package com.oriol.letsstudy.ui
 
 import android.Manifest
 import android.app.TimePickerDialog
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,12 +24,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.oriol.letsstudy.data.*
+import com.oriol.letsstudy.ai.ModelCatalog
+import com.oriol.letsstudy.ai.ModelState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -154,7 +159,7 @@ fun WorkspaceProgress(
                 val streak = studyStreak(state.allQuestions, state.activity)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Outlined.LocalFireDepartment, null, tint = LetsStudyColors.Clay)
-                    Text(if (streak == 0) "Start a study streak" else "$streak-day study streak", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(studyStreakLabel(streak, includeStudy = true), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 }
                 Text("${state.activity.sumOf { it.durationSeconds } / 60} minutes of focused study", color = LetsStudyColors.Muted)
             }
@@ -290,6 +295,7 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
     val settings = state.settings
     var clearConfirm by remember { mutableStateOf(false) }
     var showNotices by remember { mutableStateOf(false) }
+    var confirmChatGptDisconnect by remember { mutableStateOf(false) }
     val notices = remember(context) { context.assets.list("licenses").orEmpty().sorted().joinToString("\n\n") { name ->
         "$name\n\n" + context.assets.open("licenses/$name").bufferedReader().use { it.readText() }
     } }
@@ -344,8 +350,51 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
                     color = LetsStudyColors.Muted,
                 )
                 WorkspaceField(settings.language, { viewModel.saveSettings(settings.copy(language = it)) }, "Default study language", maxLength = 80)
-                WorkspaceGenerationModeSelector(settings.mode) { viewModel.saveSettings(settings.copy(mode = it)) }
             }
+        }
+        item {
+            WorkspaceCard {
+                Text("AI provider", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Choose how Let’sStudy prepares explanations and practice. Each online provider has its own usage limits.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                WorkspaceGenerationModeSelector(settings.mode, state.chatGptConnected) { viewModel.saveSettings(settings.copy(mode = it)) }
+                Text("Quick online uses Gemini through Firebase. ChatGPT uses the account connected below. On this phone uses the downloaded model.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                if (state.chatGptConnected) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Outlined.CheckCircle, null, tint = LetsStudyColors.Primary)
+                        Text("ChatGPT connected on this device", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        TextButton({ confirmChatGptDisconnect = true }, enabled = !state.chatGptConnectionBusy) { Text("Disconnect") }
+                    }
+                } else {
+                    OutlinedButton(viewModel::connectChatGpt, Modifier.fillMaxWidth(), enabled = !state.chatGptConnectionBusy) {
+                        if (state.chatGptConnectionBusy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Outlined.AccountCircle, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (state.chatGptConnectionBusy) "Connecting…" else "Continue with ChatGPT")
+                    }
+                }
+                state.chatGptConnectionMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted) }
+                HorizontalDivider(color = LetsStudyColors.Border)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Continue on this phone at a ChatGPT usage limit", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Uses the downloaded model only after ChatGPT reports a usage limit. Gemini is not used as a fallback.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                    }
+                    Switch(
+                        checked = settings.localFallbackOnChatGptLimit,
+                        onCheckedChange = { viewModel.saveSettings(settings.copy(localFallbackOnChatGptLimit = it)) },
+                        enabled = state.chatGptConnected,
+                    )
+                }
+                if (!state.chatGptConnected) Text("Connect ChatGPT to configure this option.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+            }
+        }
+        if (state.chatGptUsageLimitReached) item {
+            ChatGptUsageRecoveryCard(
+                state = state,
+                onManageUsage = { openChatGptUsage(context) },
+                onContinue = viewModel::resumePendingGeneration,
+                onDownload = viewModel::downloadModel,
+            )
         }
         item {
             WorkspaceCard {
@@ -369,7 +418,7 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
         item {
             WorkspaceCard {
                 Text("Privacy & your data", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Your studies are saved on this phone. If you enable account sync, your profile and study library are stored in your private account. When you choose online study, the material you provide and any answers or tutor messages you submit are sent to Google for processing. Study generation on this phone uses a one-time download; tutor messages and deeper lessons still use the online service. Scanned PDFs are read on your phone. The optional community board shows your chosen name and weekly points after you join; your email and study content stay private.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("Your studies are saved on this phone. If you enable account sync, your profile and study library are stored in your private account. Gemini sends the material you provide, answers and tutor messages to Google when it handles a study request. ChatGPT sends the study material, answers or tutor message for that request to OpenAI after you connect an eligible account and accept its separate notice. On-device study uses the model you download. Scanned PDFs are read on your phone before the extracted text is sent to a provider you choose. The optional community board shows your chosen name, profile photo or initials, points and streak after you join; your email and study content stay private.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 TextButton({ clearConfirm = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete all study data") }
                 TextButton({ showNotices = true }) { Text("Third-party licenses") }
             }
@@ -377,7 +426,45 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
     }
     if (clearConfirm) AlertDialog(onDismissRequest = { clearConfirm = false }, title = { Text("Delete all studies?") }, text = { Text(if (state.account.email == null) "This removes every study, answer, tutor conversation and progress record from this phone. It can't be undone." else "This removes every study, answer, tutor conversation and progress record from this phone and your synced devices. An internet connection is needed to confirm the latest cloud copy first.") },
         confirmButton = { TextButton({ viewModel.clearAllStudies(); clearConfirm = false }) { Text("Delete all") } }, dismissButton = { TextButton({ clearConfirm = false }) { Text("Keep my studies") } })
+    if (confirmChatGptDisconnect) AlertDialog(
+        onDismissRequest = { confirmChatGptDisconnect = false },
+        title = { Text("Disconnect ChatGPT?") },
+        text = { Text("This removes the ChatGPT connection from this device. Your Let’sStudy account and saved studies are not deleted.") },
+        confirmButton = { TextButton({ viewModel.disconnectChatGpt(); confirmChatGptDisconnect = false }) { Text("Disconnect") } },
+        dismissButton = { TextButton({ confirmChatGptDisconnect = false }) { Text("Keep connected") } },
+    )
     if (showNotices) AlertDialog(onDismissRequest = { showNotices = false }, title = { Text("Third-party licenses") }, text = { Text(notices, style = MaterialTheme.typography.bodySmall, modifier = Modifier.heightIn(max = 450.dp).verticalScroll(rememberScrollState())) }, confirmButton = { TextButton({ showNotices = false }) { Text("Close") } })
+}
+
+@Composable
+private fun ChatGptUsageRecoveryCard(
+    state: LetsStudyUiState,
+    onManageUsage: () -> Unit,
+    onContinue: () -> Unit,
+    onDownload: () -> Unit,
+) {
+    val actions = chatGptRecoveryActions(
+        usageLimitReached = state.chatGptUsageLimitReached,
+        localFallbackEnabled = state.settings.localFallbackOnChatGptLimit,
+        localModelAvailable = state.modelState == ModelState.Ready || state.modelState == ModelState.Available,
+    )
+    WorkspaceCard(color = LetsStudyColors.Mint) {
+        Text("Your study is ready to continue", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            if (state.pendingLocalFallback) "ChatGPT reported a usage limit. The request is still held on this device. Download the on-device model (${ModelCatalog.DISPLAY_SIZE}) to continue; downloads start on Wi‑Fi by default."
+            else "ChatGPT reported a usage limit. You can manage usage or change your provider. Let’sStudy will not switch to Gemini automatically.",
+            style = MaterialTheme.typography.bodySmall,
+            color = LetsStudyColors.Muted,
+        )
+        if (ChatGptRecoveryAction.CONTINUE_ON_DEVICE in actions) Button(onContinue, Modifier.fillMaxWidth()) { Text("Continue on this phone") }
+        if (ChatGptRecoveryAction.DOWNLOAD_ON_DEVICE in actions) Button(onDownload, Modifier.fillMaxWidth()) { Text("Download model · ${ModelCatalog.DISPLAY_SIZE}") }
+        if (ChatGptRecoveryAction.OPEN_SETTINGS in actions) Text("Turn on the on-device fallback in AI provider settings to resume this request locally.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+        if (ChatGptRecoveryAction.MANAGE_USAGE in actions) TextButton(onManageUsage) { Text("Manage usage in ChatGPT") }
+    }
+}
+
+private fun openChatGptUsage(context: Context) {
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, "https://chatgpt.com/#settings/Usage".toUri())) }
 }
 
 @Composable
@@ -419,11 +506,11 @@ private fun AccountSyncPanel(account: StudyAccountState, localDisplayName: Strin
             } else if (account.profileComplete && !profileEditing) {
                 Text(account.displayName.orEmpty(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("@${account.username.orEmpty()}", style = MaterialTheme.typography.bodyMedium, color = LetsStudyColors.Muted)
-                Text("Your profile is not listed publicly. When you save a username, Let’sStudy checks whether it is taken without revealing who owns it.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text("Your profile is not listed publicly. When you save a username, LetsStudy checks whether it is taken without revealing who owns it.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 OutlinedButton(onClick = { profileEditing = true }, enabled = !account.isBusy, modifier = Modifier.fillMaxWidth()) { Text("Edit learner profile") }
             } else {
                 Text(if (account.profileComplete) "Update your learner profile" else "Complete your learner profile", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(if (account.profileComplete) "Your display name and username are private. Choose a name that feels like you." else "Choose the name and username you want to use in Let’sStudy. You can finish this later; your saved studies remain available.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                Text(if (account.profileComplete) "Your display name and username are private. Choose a name that feels like you." else "Choose the name and username you want to use in LetsStudy. You can finish this later; your saved studies remain available.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 LearnerIdentityFields(displayName, { displayName = it }, username, { username = it }, enabled = !account.isBusy)
                 if (account.profileComplete) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -478,7 +565,7 @@ private fun AccountSyncPanel(account: StudyAccountState, localDisplayName: Strin
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
             )
-            Text(if (createMode) "Use at least 8 characters. Your password is protected and isn't saved in Let’sStudy." else "Your password is protected and isn't saved in Let’sStudy.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+            Text(if (createMode) "Use at least 8 characters. Your password is protected and isn't saved in LetsStudy." else "Your password is protected and isn't saved in LetsStudy.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
             if (createMode) {
                 Row(verticalAlignment = Alignment.Top) {
                     Checkbox(checked = consent, onCheckedChange = { consent = it }, enabled = !account.isBusy)
@@ -504,7 +591,7 @@ private fun AccountSyncPanel(account: StudyAccountState, localDisplayName: Strin
                     displayName = localDisplayName.trim()
                 }
             }, enabled = !account.isBusy) {
-                Text(if (createMode) "Already have an account? Sign in" else "New to Let’sStudy? Create an account")
+                Text(if (createMode) "Already have an account? Sign in" else "New to LetsStudy? Create an account")
             }
             account.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             account.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Primary) }

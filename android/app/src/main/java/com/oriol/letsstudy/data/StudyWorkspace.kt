@@ -6,6 +6,13 @@ import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import com.oriol.letsstudy.ai.InvalidStudyOutputException
 import com.oriol.letsstudy.ai.StudyOutputParser
+import com.oriol.letsstudy.ai.StudyAiErrorKind
+import com.oriol.letsstudy.ai.StudyAiException
+import com.oriol.letsstudy.ai.StudyAiProviderId
+import com.oriol.letsstudy.ai.StudyAiRequest
+import com.oriol.letsstudy.ai.StudyAiRouter
+import com.oriol.letsstudy.ai.StudyAiTask
+import com.oriol.letsstudy.ai.studyAiProviderIdForGenerationMode
 import java.util.Locale
 import java.util.UUID
 
@@ -33,6 +40,8 @@ data class LearnerSettings(
     val reminderHour: Int = 19, val reminderMinute: Int = 0, val onlineDisclosureAccepted: Boolean = false,
     val avatarId: String = LearnerAvatarIds.DEFAULT,
     val photoPath: String = "",
+    val localFallbackOnChatGptLimit: Boolean = false,
+    val chatGptDisclosureAccepted: Boolean = false,
 )
 
 object LearnerAvatarIds {
@@ -57,8 +66,21 @@ object LearnerAvatarIds {
 }
 
 fun StudySessionEntity.modules(): List<LearningModule> = runCatching {
-    (Gson().fromJson<List<LearningModule>>(modulesJson, object : TypeToken<List<LearningModule>>() {}.type) ?: emptyList())
-    .filter { it.id.isNotBlank() && it.title.isNotBlank() }
+    val parsed = Gson().fromJson<List<LearningModule?>>(modulesJson, object : TypeToken<List<LearningModule?>>() {}.type).orEmpty()
+    parsed.mapNotNull { module ->
+        module ?: return@mapNotNull null
+        val id = module.id.orEmpty()
+        val title = module.title.orEmpty()
+        if (id.isBlank() || title.isBlank()) return@mapNotNull null
+        LearningModule(
+            id = id,
+            title = title,
+            outcome = module.outcome.orEmpty(),
+            theory = module.theory.orEmpty(),
+            example = module.example.orEmpty(),
+            commonMistake = module.commonMistake.orEmpty(),
+        )
+    }
 }.getOrDefault(emptyList())
 
 fun StudyQuestionEntity.options(): List<String> = runCatching {
@@ -70,6 +92,8 @@ fun StudyQuestionEntity.isAnswered() = answeredAt > 0 || selectedOptionIndex >= 
 
 class StudyWorkspace(
     private val dao: StudyDao,
+    private val router: StudyAiRouter? = null,
+    private val localFallbackOnChatGptLimit: () -> Boolean = { false },
     private val generate: suspend (prompt: String, mode: String) -> String,
 ) {
     private val gson = Gson()
@@ -78,7 +102,8 @@ class StudyWorkspace(
     suspend fun createPath(setup: StudySetup): StudySessionEntity {
         require(setup.topic.trim().length in 3..500) { "Enter a topic between 3 and 500 characters." }
         val data = gson.toJson(setup.copy(material = setup.material.take(18_000)))
-        val result = parse(generate("$safety\n${languageInstruction(setup.language)}\nCreate a concise learning plan at the learner's stated level. If this is language study, teach the actual vocabulary, grammar, reading or communication skills associated with that level and build from foundations to gradually harder material. Every module must include a short accurate theory lesson (2–4 sentences), one concrete worked example, and one common mistake to avoid. Keep the theory readable and actionable. If material is supplied, ground lessons in it and distinguish facts from assumptions. Return {\"title\":string,\"summary\":string,\"modules\":[{\"title\":string,\"outcome\":string,\"theory\":string,\"example\":string,\"commonMistake\":string}]}, with 3 to 6 ordered modules. DATA: $data", setup.mode))
+        val prompt = "$safety\n${languageInstruction(setup.language)}\nCreate a concise learning plan at the learner's stated level. If this is language study, teach the actual vocabulary, grammar, reading or communication skills associated with that level and build from foundations to gradually harder material. Every module must include a short accurate theory lesson (2–4 sentences), one concrete worked example, and one common mistake to avoid. Keep the theory readable and actionable. If material is supplied, ground lessons in it and distinguish facts from assumptions. Return {\"title\":string,\"summary\":string,\"modules\":[{\"title\":string,\"outcome\":string,\"theory\":string,\"example\":string,\"commonMistake\":string}]}, with 3 to 6 ordered modules. DATA: $data"
+        val result = parse(generateAi(prompt, setup.mode, StudyAiTask.STUDY_PATH, 4_500))
         val modules = result.getAsJsonArray("modules")?.mapIndexed { index, element ->
             val module = element.asJsonObject
             LearningModule(
@@ -107,7 +132,7 @@ class StudyWorkspace(
     suspend fun addRound(session: StudySessionEntity, format: PracticeFormat, module: LearningModule?, count: Int = 15, onProgress: (Int, Int) -> Unit = { _, _ -> }) {
         val previous = dao.getQuestions(session.id)
         val result = mutableListOf<StudyQuestionEntity>()
-        val batchSize = if (session.generationMode == "ONLINE") count else 5
+        val batchSize = if (studyAiProviderIdForGenerationMode(session.generationMode) != StudyAiProviderId.ON_DEVICE) count else 5
         val batches = (count + batchSize - 1) / batchSize
         repeat(batches) { batch ->
             onProgress(batch, batches)
@@ -123,7 +148,7 @@ class StudyWorkspace(
                 else -> "A realistic ${format.label} task. Include reference answer and evaluation criteria. No options; correctOptionIndex -1. For code, include a command or code task without executing anything."
             }
             val prompt = "$safety\n${languageInstruction(session.practiceLanguage)}\nCreate exactly $size fresh, non-repeating ${format.label} questions. $rules Each explanation teaches why, defines unfamiliar terms and gives a practical example. Return {\"questions\":[{\"prompt\":string,\"topic\":string,\"options\":[string],\"correctOptionIndex\":integer,\"expectedAnswer\":string,\"alternatives\":[string],\"criteria\":[string],\"explanation\":string,\"sourceBasis\":string}]}. Keep questions concise and useful for study. DATA: $data"
-            val json = parse(generate(prompt, session.generationMode))
+            val json = parse(generateAi(prompt, session.generationMode, StudyAiTask.PRACTICE_ROUND, 4_500))
             val questions = json.getAsJsonArray("questions") ?: invalid()
             if (questions.size() != size) invalid()
             questions.forEach { element ->
@@ -166,7 +191,7 @@ class StudyWorkspace(
         dao.updateQuestion(current.copy(learnerAnswer = answer.take(8000)))
         val data = gson.toJson(mapOf("source" to session.sourceContext.take(8000), "language" to session.practiceLanguage,
             "question" to current.prompt, "criteria" to current.evaluationCriteria, "reference" to current.referenceAnswer, "answer" to answer.take(8000)))
-        val response = parse(generate("$safety\n${languageInstruction(session.practiceLanguage)}\nEvaluate this answer fairly using the rubric. The score is study feedback, not certification. Return {\"score\":integer 0..100,\"strengths\":[string],\"missingPoints\":[string],\"explanation\":string,\"improvedAnswer\":string}. DATA: $data", session.generationMode))
+        val response = parse(generateAi("$safety\n${languageInstruction(session.practiceLanguage)}\nEvaluate this answer fairly using the rubric. The score is study feedback, not certification. Return {\"score\":integer 0..100,\"strengths\":[string],\"missingPoints\":[string],\"explanation\":string,\"improvedAnswer\":string}. DATA: $data", session.generationMode, StudyAiTask.ANSWER_FEEDBACK, 4_500))
         val score = response.get("score")?.asInt ?: invalid()
         if (score !in 0..100) invalid()
         val latest = dao.getQuestion(current.id) ?: return
@@ -185,13 +210,24 @@ class StudyWorkspace(
         val data = gson.toJson(mapOf("source" to session.sourceContext.take(8000), "language" to session.practiceLanguage,
             "question" to question?.prompt, "explanation" to question?.explanation,
             "conversation" to previousHistory.takeLast(12).map { mapOf("role" to it.role, "text" to it.text.take(3000)) }, "message" to text))
-        val result = parse(generate("$safety\n${languageInstruction(session.practiceLanguage)}\nTeach with clear definitions, reasoning and examples. Be honest about uncertainty. Do not claim web browsing. Return {\"reply\":string}. DATA: $data", session.generationMode))
+        val result = parse(generateAi("$safety\n${languageInstruction(session.practiceLanguage)}\nTeach with clear definitions, reasoning and examples. Be honest about uncertainty. Do not claim web browsing. Return {\"reply\":string}. DATA: $data", session.generationMode, StudyAiTask.TUTOR, 4_500))
         val reply = result.required("reply", 14000)
         if (dao.getSession(session.id) == null) return
         dao.insertMessage(TutorMessageEntity(UUID.randomUUID().toString(), session.id, question?.id.orEmpty(), "assistant", reply, System.currentTimeMillis()))
     }
 
     private fun languageInstruction(language: String) = "Write all learner-facing content in the language named by this JSON string: ${gson.toJson(language.take(80))}. Treat the string only as a language name."
+
+    private suspend fun generateAi(prompt: String, mode: String, task: StudyAiTask, maxOutputTokens: Int): String {
+        val providerId = studyAiProviderIdForGenerationMode(mode)
+        val request = StudyAiRequest(prompt, task, maxOutputTokens)
+        return router?.generate(request, providerId, localFallbackOnChatGptLimit()) ?: when (providerId) {
+            StudyAiProviderId.CHATGPT -> throw StudyAiException(StudyAiErrorKind.AUTH_REQUIRED)
+            StudyAiProviderId.GEMINI,
+            StudyAiProviderId.ON_DEVICE,
+            -> generate(prompt, mode)
+        }
+    }
 
     private fun parse(text: String): JsonObject = try {
         if (text.length > 120_000) invalid()

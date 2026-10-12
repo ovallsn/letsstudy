@@ -83,7 +83,7 @@ class ModelDownloadWorker(
         ensureNotificationChannel()
         val notification = Notification.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Let’sStudy model")
+            .setContentTitle("LetsStudy model")
             .setContentText(text)
             .setProgress(100, progress.coerceIn(0, 100), false)
             .setOngoing(true)
@@ -103,7 +103,7 @@ class ModelDownloadWorker(
         if (manager.getNotificationChannel(CHANNEL_ID) == null) {
             manager.createNotificationChannel(
                 NotificationChannel(CHANNEL_ID, "Model downloads", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "Progress while downloading Let’sStudy's on-device model"
+                    description = "Progress while downloading LetsStudy's on-device model"
                 },
             )
         }

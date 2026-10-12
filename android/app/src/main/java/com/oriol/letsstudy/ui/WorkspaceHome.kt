@@ -172,7 +172,7 @@ fun WorkspaceTopicSetup(state: LetsStudyUiState, initialTopic: String, materialM
                 WorkspaceSelect("Study pace", intensity, listOf("Quick · 10 min", "Balanced", "Intensive · 40 min")) { intensity = it }
                 WorkspaceField(target, { target = it }, "Target date or milestone (optional)", maxLength = 200)
                 WorkspaceField(language, { language = it }, "Study language", maxLength = 80)
-                WorkspaceGenerationModeSelector(mode) { mode = it }
+                WorkspaceGenerationModeSelector(mode, state.chatGptConnected) { mode = it }
                 Button({ onCreate(StudySetup(topic.trim(), goal.trim(), level, intensity, target.trim(), language.trim(), mode,
                     if (materialMode) "MATERIAL" else initialKind, if (materialMode) state.importedMaterial?.text.orEmpty() else "", if (materialMode) state.importedMaterial?.name.orEmpty() else "")) },
                     Modifier.fillMaxWidth(), enabled = topic.trim().length >= 3 && language.isNotBlank() && (!materialMode || state.importedMaterial != null) && !state.workspaceBusy) { Text("Build my learning path") }
@@ -195,7 +195,7 @@ fun WorkspaceJobPreparation(state: LetsStudyUiState, onMenu: () -> Unit, onAnaly
                 WorkspaceField(source, { source = it }, if (kind == SourceKind.URL) "Public HTTPS job URL" else "Full job description", if (kind == SourceKind.TEXT) 5 else 1, 18000)
                 Text("If a listing requires sign-in or can't be read, paste its description instead.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 WorkspaceField(language, { language = it }, "Question language", maxLength = 80)
-                WorkspaceGenerationModeSelector(mode) { mode = it }
+                WorkspaceGenerationModeSelector(mode, state.chatGptConnected) { mode = it }
                 Button({ onAnalyze(StudyInput(kind, source.trim()), language.trim(), mode) }, Modifier.fillMaxWidth(), enabled = !state.isAnalyzing && language.isNotBlank() && if (kind == SourceKind.URL) source.startsWith("https://") else source.trim().length >= 100) { Text("Build my first 15 questions") }
                 Text("15 practical multiple-choice questions, with four options and clear explanations.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
                 Text("These are focused practice prompts, not a guarantee of the exact questions an interviewer will ask.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)

@@ -22,6 +22,6 @@ class UsernamePolicyTest {
     fun rejectsReservedNamesAndKeepsOrdinaryNamesAvailable() {
         assertFalse(UsernamePolicy.isAllowed("admin123"))
         assertFalse(UsernamePolicy.isAllowed("admin_helper"))
-        assertTrue(UsernamePolicy.isAllowed("oriol_reader"))
+        assertTrue(UsernamePolicy.isAllowed("riley_reader"))
     }
 }

@@ -13,12 +13,15 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigInteger
+import java.io.IOException
 import java.net.URI
+import java.net.UnknownHostException
 import java.nio.charset.StandardCharsets
 import java.security.KeyPairGenerator
 import java.security.Signature
 import java.util.Base64
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class ChatGptOAuthClientTest {
     private val server = MockWebServer().apply { start() }
@@ -82,6 +85,78 @@ class ChatGptOAuthClientTest {
         assertEquals(issuedClientId, exchangeBody.formValue("client_id"))
         assertEquals("code-1", exchangeBody.formValue("code"))
         assertEquals(query.getValue("redirect_uri"), exchangeBody.formValue("redirect_uri"))
+    }
+
+    @Test
+    fun identifiesTokenExchangeWhenTheAuthorizationCodeCannotBeRedeemed() = runBlocking {
+        enqueueDiscovery()
+        val httpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                if (chain.request().url.encodedPath == "/token") throw IOException("Token endpoint unavailable")
+                chain.proceed(chain.request())
+            }
+            .build()
+
+        val client = client(
+            FakeLoopbackOAuthCallbackServer(),
+            httpClient,
+        )
+        val error = try {
+            client.connect()
+            throw AssertionError("Expected the token exchange to fail")
+        } catch (error: ChatGptOAuthException) {
+            error
+        }
+
+        assertEquals(ChatGptOAuthFailure.NETWORK, error.failure)
+        assertEquals(ChatGptOAuthStage.TOKEN_EXCHANGE, error.stage)
+        assertNotNull(error.cause)
+    }
+
+    @Test
+    fun retriesTokenExchangeAfterATransientDnsFailure() = runBlocking {
+        enqueueDiscovery()
+        enqueueToken(subject = "subject-1")
+        enqueueJwks()
+        val tokenAttempts = AtomicInteger()
+        val httpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                if (chain.request().url.encodedPath == "/token" && tokenAttempts.incrementAndGet() <= 4) {
+                    throw UnknownHostException("Temporary DNS failure")
+                }
+                chain.proceed(chain.request())
+            }
+            .build()
+
+        val result = client(FakeLoopbackOAuthCallbackServer(), httpClient).connect()
+
+        assertEquals("subject-1", result.subject)
+        assertEquals(5, tokenAttempts.get())
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test
+    fun identifiesIdentityVerificationWhenOpenAiKeysCannotBeFetched() = runBlocking {
+        enqueueDiscovery()
+        enqueueToken(subject = "subject-1")
+        val httpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                if (chain.request().url.encodedPath == "/jwks") throw IOException("Identity keys unavailable")
+                chain.proceed(chain.request())
+            }
+            .build()
+
+        val client = client(FakeLoopbackOAuthCallbackServer(), httpClient)
+        val error = try {
+            client.connect()
+            throw AssertionError("Expected identity verification to fail")
+        } catch (error: ChatGptOAuthException) {
+            error
+        }
+
+        assertEquals(ChatGptOAuthFailure.NETWORK, error.failure)
+        assertEquals(ChatGptOAuthStage.IDENTITY_VERIFICATION, error.stage)
+        assertNotNull(error.cause)
     }
 
     @Test
@@ -197,12 +272,15 @@ class ChatGptOAuthClientTest {
         assertFalse(current.toString().contains("refresh-secret"))
     }
 
-    private fun client(callback: FakeLoopbackOAuthCallbackServer): OpenAiChatGptOAuthClient =
+    private fun client(
+        callback: FakeLoopbackOAuthCallbackServer,
+        httpClient: OkHttpClient = OkHttpClient(),
+    ): OpenAiChatGptOAuthClient =
         OpenAiChatGptOAuthClient(
             callbackServerFactory = { callback },
             browserLauncher = OAuthBrowserLauncher { callback.onAuthorizationOpened(it) },
             hostIdProvider = { hostId },
-            httpClient = OkHttpClient(),
+            httpClient = httpClient,
             discoveryUrl = server.url(".well-known/openid-configuration").toString(),
             nowMillis = { 1_800_000_000_000L },
             nonceProvider = { "nonce-placeholder" },

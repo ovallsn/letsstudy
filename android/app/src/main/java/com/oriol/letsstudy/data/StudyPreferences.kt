@@ -23,11 +23,14 @@ class StudyPreferences(context: Context) {
     fun read() = LearnerSettings(prefs.getString("name", "").orEmpty(), prefs.getString("language", "English").orEmpty(),
         prefs.getString("mode", "ONLINE").orEmpty(), prefs.getBoolean("daily", false), prefs.getBoolean("weekly", false),
         prefs.getInt("hour", 19), prefs.getInt("minute", 0), prefs.getBoolean("online_disclosure", false),
-        LearnerAvatarIds.safe(prefs.getString("avatar", LearnerAvatarIds.DEFAULT)), prefs.getString("profile_photo_path", "").orEmpty())
+        LearnerAvatarIds.safe(prefs.getString("avatar", LearnerAvatarIds.DEFAULT)), prefs.getString("profile_photo_path", "").orEmpty(),
+        prefs.getBoolean("local_chatgpt_limit_fallback", false), prefs.getBoolean("chatgpt_disclosure", false))
     fun save(value: LearnerSettings) { prefs.edit().putString("name", value.name).putString("language", value.language)
         .putString("mode", value.mode).putBoolean("daily", value.dailyReminder).putBoolean("weekly", value.weeklySummary)
         .putInt("hour", value.reminderHour).putInt("minute", value.reminderMinute).putBoolean("online_disclosure", value.onlineDisclosureAccepted)
-        .putString("avatar", LearnerAvatarIds.safe(value.avatarId)).putString("profile_photo_path", value.photoPath).apply() }
+        .putString("avatar", LearnerAvatarIds.safe(value.avatarId)).putString("profile_photo_path", value.photoPath)
+        .putBoolean("local_chatgpt_limit_fallback", value.localFallbackOnChatGptLimit)
+        .putBoolean("chatgpt_disclosure", value.chatGptDisclosureAccepted).apply() }
 }
 
 object StudyReminders {

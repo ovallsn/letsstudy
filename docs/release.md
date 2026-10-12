@@ -10,7 +10,7 @@ For a phone review APK, Android Studio can create the key:
 
 1. Open the Android project in Android Studio.
 2. Select **Build → Generate Signed Bundle / APK… → APK → Next**.
-3. Select **Create new…** beside Key store path. Save it outside the repository, for example in a private folder such as `C:\Users\Valls\Documents\LetsStudyKeys\letsstudy-release.jks`.
+3. Select **Create new…** beside Key store path. Save it outside the repository, for example in a private folder under your Windows user directory such as `$env:USERPROFILE\LetsStudyKeys\letsstudy-release.jks`.
 4. Enter a key-store password, key alias, key password and a long validity period. Keep the passwords in a password manager. Certificate name and organization fields identify the publisher and are not secret.
 5. Finish creating the key and keep two protected backups. Losing the key can prevent later builds from updating the installed app. Never add the JKS file to Git, Google Drive shared folders or a public artifact.
 
@@ -21,10 +21,10 @@ If Play Console already shows an upload certificate, use that existing private u
 Find the SHA-256 certificate fingerprint with Android Studio’s Terminal or PowerShell:
 
 ```powershell
-keytool -list -v -keystore 'C:\Users\Valls\Documents\LetsStudyKeys\letsstudy-release.jks' -alias 'letsstudy-upload'
+keytool -list -v -keystore "$env:USERPROFILE\LetsStudyKeys\letsstudy-release.jks" -alias 'letsstudy-upload'
 ```
 
-The command prompts for the password. Copy the SHA-256 value from its output; do not put passwords in the command. In Firebase Console, open **Project settings → Your apps → Let’sStudy (Android) → SHA certificate fingerprints** and add the release certificate. For a Play-distributed app, also add the Play App Signing SHA-256 fingerprint shown in Play Console.
+The command prompts for the password. Copy the SHA-256 value from its output; do not put passwords in the command. In Firebase Console, open **Project settings → Your apps → LetsStudy (Android) → SHA certificate fingerprints** and add the release certificate. For a Play-distributed app, also add the Play App Signing SHA-256 fingerprint shown in Play Console.
 
 In Firebase **App Check → Apps**, configure Play Integrity for the release app. Keep the debug provider and debug token limited to local debug builds. A Play Integrity production check should be verified from a Play internal-testing installation; a directly sideloaded APK is not a substitute for the Play-installed release path.
 
@@ -43,7 +43,7 @@ Open the public repository’s **Settings → Secrets and variables → Actions 
 To put the keystore’s Base64 text on the Windows clipboard without printing it into a terminal log, run this in PowerShell and paste the clipboard directly into the matching GitHub secret field:
 
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes('C:\Users\Valls\Documents\LetsStudyKeys\letsstudy-release.jks')) | Set-Clipboard
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\LetsStudyKeys\letsstudy-release.jks")) | Set-Clipboard
 ```
 
 Do not paste the Firebase file, keystore, passwords, full Base64 value or App Check debug token in a GitHub issue, chat or source file. GitHub stores these as Actions secrets. The workflow reconstructs the Firebase file and keystore only on its temporary runner and removes them at the end.

@@ -13,6 +13,21 @@ import com.oriol.letsstudy.ai.ModelDownloadState
 import com.oriol.letsstudy.ai.ModelState
 import com.oriol.letsstudy.ai.ModelUnavailableException
 import com.oriol.letsstudy.ai.InvalidStudyOutputException
+import com.oriol.letsstudy.ai.AndroidChatGptCredentialStore
+import com.oriol.letsstudy.ai.AndroidLoopbackOAuthCallbackServer
+import com.oriol.letsstudy.ai.AndroidOAuthBrowserLauncher
+import com.oriol.letsstudy.ai.ChatGptOAuthException
+import com.oriol.letsstudy.ai.ChatGptOAuthFailure
+import com.oriol.letsstudy.ai.ChatGptOAuthStage
+import com.oriol.letsstudy.ai.ChatGptStudyAiProvider
+import com.oriol.letsstudy.ai.DefaultOpenAiResponsesClient
+import com.oriol.letsstudy.ai.OpenAiChatGptOAuthClient
+import com.oriol.letsstudy.ai.StudyAiErrorKind
+import com.oriol.letsstudy.ai.StudyAiException
+import com.oriol.letsstudy.ai.StudyAiProviderId
+import com.oriol.letsstudy.ai.StudyAiRouter
+import com.oriol.letsstudy.ai.FirebaseStudyAiProvider
+import com.oriol.letsstudy.ai.OnDeviceStudyAiProvider
 import com.oriol.letsstudy.data.StudyDatabase
 import com.oriol.letsstudy.data.JobOfferReader
 import com.oriol.letsstudy.data.StudyQuestionEntity
@@ -60,6 +75,12 @@ data class LetsStudyUiState(
     val settings: LearnerSettings = LearnerSettings(),
     val account: StudyAccountState = StudyAccountState(),
     val leaderboard: StudyLeaderboardState = StudyLeaderboardState(),
+    val chatGptConnected: Boolean = false,
+    val chatGptConnectionBusy: Boolean = false,
+    val chatGptConnectionMessage: String? = null,
+    val pendingLocalFallback: Boolean = false,
+    val chatGptUsageLimitReached: Boolean = false,
+    val studyAiNotice: String? = null,
     val workspaceBusy: Boolean = false,
     val workspaceStatus: String = "",
     val importedMaterial: ImportedMaterial? = null,
@@ -70,11 +91,35 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         modelFile = ModelCatalog.modelFile(application),
         engineFactory = LiteRtLocalStudyEngineFactory(File(application.cacheDir, "litertlm-cache")),
     )
+    private val firebaseAi = FirebaseFastQuestionGenerator()
+    private val chatGptCredentials = AndroidChatGptCredentialStore(application)
+    private val chatGptOAuth = OpenAiChatGptOAuthClient(
+        callbackServerFactory = { AndroidLoopbackOAuthCallbackServer() },
+        browserLauncher = AndroidOAuthBrowserLauncher(application),
+        hostIdProvider = chatGptCredentials::getOrCreateHostId,
+    )
+    private val chatGptProvider = ChatGptStudyAiProvider(
+        credentials = chatGptCredentials,
+        oauthClient = chatGptOAuth,
+        client = DefaultOpenAiResponsesClient(),
+    )
+    private val aiRouter = StudyAiRouter(
+        mapOf(
+            StudyAiProviderId.GEMINI to FirebaseStudyAiProvider(firebaseAi),
+            StudyAiProviderId.CHATGPT to chatGptProvider,
+            StudyAiProviderId.ON_DEVICE to OnDeviceStudyAiProvider(modelManager),
+        ),
+        onLocalFallback = { task ->
+            _uiState.update { it.copy(studyAiNotice = "ChatGPT reported a usage limit · this ${task.displayName()} used the on-device model.") }
+        },
+    )
     private val repository = StudyRepository(
         StudyDatabase.get(application).studyDao(),
         modelManager,
         JobOfferReader(),
-        FirebaseFastQuestionGenerator(),
+        firebaseAi,
+        aiRouter,
+        { _uiState.value.settings.localFallbackOnChatGptLimit },
     )
     private val modelDownloadRepository = ModelDownloadRepository(application)
     private val _uiState = MutableStateFlow(LetsStudyUiState())
@@ -87,15 +132,19 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     private val leaderboardRepository = StudyLeaderboardRepository()
     private val preferences = StudyPreferences(application)
     private val profilePhotoStore = ProfilePhotoStore(application)
-    private val workspaceAi = FirebaseFastQuestionGenerator()
-    private val workspace = StudyWorkspace(dao) { prompt, mode ->
-        if (mode == "ONLINE") workspaceAi.generateWorkspace(prompt)
-        else modelManager.generate(prompt, 4500)
-    }
+    private var pendingGeneration: PendingStudyGeneration? = null
+    private val workspace = StudyWorkspace(
+        dao = dao,
+        router = aiRouter,
+        localFallbackOnChatGptLimit = { _uiState.value.settings.localFallbackOnChatGptLimit },
+        generate = { prompt, mode ->
+            if (mode == "ONLINE") firebaseAi.generateWorkspace(prompt) else modelManager.generate(prompt, 4500)
+        },
+    )
     private var workspaceJob: Job? = null
 
     init {
-        _uiState.update { it.copy(settings = preferences.read()) }
+        _uiState.update { it.copy(settings = preferences.read(), chatGptConnected = chatGptCredentials.read() != null) }
         viewModelScope.launch { accountSync.state.collectLatest { account ->
             _uiState.update { state -> state.copy(account = account, leaderboard = if (account.email == null) StudyLeaderboardState() else state.leaderboard) }
         } }
@@ -114,13 +163,18 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             modelDownloadRepository.observeState().collectLatest { downloadState ->
                 _uiState.update { it.copy(modelDownloadState = downloadState) }
-                if (downloadState is ModelDownloadState.Ready) modelManager.refreshAvailability()
+                if (downloadState is ModelDownloadState.Ready) {
+                    modelManager.refreshAvailability()
+                    if (_uiState.value.pendingLocalFallback) resumePendingGeneration()
+                }
             }
         }
     }
 
     fun analyze(input: StudyInput, language: String, mode: String) {
         if (_uiState.value.isAnalyzing || _uiState.value.isGenerating || _uiState.value.workspaceBusy) return
+        val pending = PendingStudyGeneration.AnalyzeJob(input, language, mode)
+        setPendingGeneration(pending)
         _uiState.update { it.copy(isAnalyzing = true, errorMessage = null, generationProgress = null) }
         generationJob = viewModelScope.launch {
             try {
@@ -132,9 +186,12 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
                 }
                 val session = repository.createSession(result, input, language, mode)
                 observeSession(session)
+                clearPendingGeneration(pending)
             } catch (error: CancellationException) {
+                clearPendingGeneration(pending)
                 throw error
             } catch (error: Exception) {
+                keepPendingOnlyForLocalFallback(pending, error)
                 _uiState.update { it.copy(errorMessage = friendlyMessage(error)) }
             } finally {
                 _uiState.update { it.copy(isAnalyzing = false, generationProgress = null) }
@@ -212,6 +269,8 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     fun generateMore(mode: String) {
         val session = _uiState.value.activeSession ?: return
         if (_uiState.value.isGenerating || _uiState.value.isAnalyzing || _uiState.value.workspaceBusy) return
+        val pending = PendingStudyGeneration.GenerateMoreJobQuestions(session.id, mode)
+        setPendingGeneration(pending)
         _uiState.update { it.copy(isGenerating = true, errorMessage = null, generationProgress = null) }
         generationJob = viewModelScope.launch {
             try {
@@ -220,9 +279,12 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
                 }
                 val updatedSession = repository.getSession(session.id)
                 if (updatedSession != null) _uiState.update { it.copy(activeSession = updatedSession) }
+                clearPendingGeneration(pending)
             } catch (error: CancellationException) {
+                clearPendingGeneration(pending)
                 throw error
             } catch (error: Exception) {
+                keepPendingOnlyForLocalFallback(pending, error)
                 _uiState.update { it.copy(errorMessage = friendlyMessage(error)) }
             } finally {
                 _uiState.update { it.copy(isGenerating = false, generationProgress = null) }
@@ -234,15 +296,20 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         val session = _uiState.value.activeSession ?: return
         val question = _uiState.value.selectedQuestion ?: return
         if (answer.isBlank() || _uiState.value.isSubmitting) return
+        val pending = PendingStudyGeneration.EvaluateAnswer(question.id, answer.trim(), null, workspaceAnswer = false)
+        setPendingGeneration(pending)
         viewModelScope.launch {
             _uiState.update { it.copy(isSubmitting = true, errorMessage = null, generationProgress = null) }
             try {
                 repository.submitAnswer(session, question, answer.trim()) { progress ->
                     _uiState.update { it.copy(generationProgress = progress) }
                 }
+                clearPendingGeneration(pending)
             } catch (error: CancellationException) {
+                clearPendingGeneration(pending)
                 throw error
             } catch (error: Exception) {
+                keepPendingOnlyForLocalFallback(pending, error)
                 _uiState.update { it.copy(errorMessage = friendlyMessage(error)) }
             } finally {
                 _uiState.update { it.copy(isSubmitting = false, generationProgress = null) }
@@ -279,6 +346,8 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         val session = state.activeSession ?: return
         val question = state.selectedQuestion ?: return
         if (question.conceptLessonJson.isNotBlank() || question.id in state.conceptLessonLoadingQuestionIds) return
+        val pending = PendingStudyGeneration.GenerateLesson(question.id)
+        setPendingGeneration(pending)
 
         _uiState.update {
             it.copy(
@@ -289,11 +358,17 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             try {
                 repository.getOrGenerateConceptLesson(session, question)
+                clearPendingGeneration(pending)
             } catch (error: CancellationException) {
+                clearPendingGeneration(pending)
                 throw error
             } catch (error: Exception) {
+                keepPendingOnlyForLocalFallback(pending, error)
                 _uiState.update { current ->
-                    current.copy(conceptLessonErrorCodes = current.conceptLessonErrorCodes + (question.id to conceptLessonErrorCode(error)))
+                    current.copy(
+                        conceptLessonErrorCodes = current.conceptLessonErrorCodes + (question.id to conceptLessonErrorCode(error)),
+                        errorMessage = if (hasChatGptUsageLimit(error) || requiresLocalModel(error)) friendlyMessage(error) else current.errorMessage,
+                    )
                 }
             } finally {
                 _uiState.update { current ->
@@ -331,7 +406,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun clearError() = _uiState.update { it.copy(errorMessage = null) }
 
-    fun createStudy(setup: StudySetup) = runWorkspace("Creating your learning path…") {
+    fun createStudy(setup: StudySetup) = runWorkspace("Creating your learning path…", PendingStudyGeneration.CreatePath(setup)) {
         val session = workspace.createPath(setup)
         observeSession(session)
     }
@@ -339,10 +414,13 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     fun addPractice(format: PracticeFormat, module: LearningModule? = null, interview: Boolean = false, mode: String? = null) {
         val original = _uiState.value.activeSession ?: return
         val session = original.copy(generationMode = mode ?: original.generationMode)
-        runWorkspace(if (interview) "Preparing your interview…" else "Building 15 ${format.label.lowercase()} questions…") {
+        val selectedFormat = if (interview) PracticeFormat.INTERVIEW else format
+        val count = if (interview) 5 else 15
+        val pending = PendingStudyGeneration.AddRound(session.id, selectedFormat, module?.id, count, session.generationMode)
+        runWorkspace(if (interview) "Preparing your interview…" else "Building 15 ${format.label.lowercase()} questions…", pending) {
             val countBefore = dao.getQuestions(session.id).size
             val selectedModule = if (interview) LearningModule("interview-${java.util.UUID.randomUUID()}", "Mock interview", "Practice explaining your experience") else module
-            workspace.addRound(session, if (interview) PracticeFormat.INTERVIEW else format, selectedModule, if (interview) 5 else 15) { complete, total ->
+            workspace.addRound(session, selectedFormat, selectedModule, count) { complete, total ->
                 _uiState.update { it.copy(workspaceStatus = "Building questions · $complete/$total batches") }
             }
             val added = dao.getQuestions(session.id).drop(countBefore)
@@ -357,7 +435,9 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun answerPractice(answer: String, selfRating: Int? = null) {
         val question = _uiState.value.selectedQuestion ?: return
-        runWorkspace(if (selfRating != null || question.format == PracticeFormat.FILL_BLANK.name) "Saving your answer…" else "Reviewing your answer…") {
+        val needsAi = selfRating == null && question.format != PracticeFormat.FILL_BLANK.name
+        val pending = if (needsAi) PendingStudyGeneration.EvaluateAnswer(question.id, answer, selfRating) else null
+        runWorkspace(if (needsAi) "Reviewing your answer…" else "Saving your answer…", pending) {
             workspace.answer(question, answer, selfRating)
         }
     }
@@ -367,8 +447,85 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         val session = current.activeSession ?: return
         val question = if (questionContext) current.selectedQuestion else null
         val history = current.messages.filter { it.sessionId == session.id && it.questionId == question?.id.orEmpty() }
-        runWorkspace("Your tutor is thinking…") { workspace.tutor(session.copy(generationMode = "ONLINE"), question, message.trim(), history) }
+        val mode = current.settings.mode
+        val pending = PendingStudyGeneration.TutorMessage(session.id, question?.id, message.trim())
+        runWorkspace("Your tutor is thinking…", pending) {
+            workspace.tutor(session.copy(generationMode = mode), question, message.trim(), history)
+        }
     }
+
+    fun connectChatGpt() {
+        if (_uiState.value.chatGptConnectionBusy) return
+        _uiState.update { it.copy(chatGptConnectionBusy = true, chatGptConnectionMessage = null) }
+        viewModelScope.launch {
+            try {
+                val connected = chatGptOAuth.connect(chatGptCredentials.read())
+                chatGptCredentials.write(connected)
+                chatGptProvider.invalidateModelCatalog()
+                _uiState.update { it.copy(chatGptConnected = true, chatGptConnectionMessage = "ChatGPT is connected on this device.") }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: ChatGptOAuthException) {
+                val host = when (error.stage) {
+                    ChatGptOAuthStage.DISCOVERY,
+                    ChatGptOAuthStage.TOKEN_EXCHANGE,
+                    ChatGptOAuthStage.IDENTITY_VERIFICATION,
+                    -> "auth.openai.com"
+                    else -> "none"
+                }
+                Log.w(
+                    "LetsStudyChatGPT",
+                    "Sign-in failed (stage=${error.stage?.name ?: "UNKNOWN"}, failure=${error.failure.name}, host=$host, transport=${error.cause?.javaClass?.simpleName ?: "none"}).",
+                )
+                val message = when (error.failure) {
+                    ChatGptOAuthFailure.CONSENT_CANCELLED -> "ChatGPT sign-in was cancelled. You can connect whenever you are ready."
+                    ChatGptOAuthFailure.NOT_ELIGIBLE -> "This ChatGPT account or plan cannot connect to Let’sStudy yet."
+                    ChatGptOAuthFailure.NETWORK -> when (error.stage) {
+                        ChatGptOAuthStage.TOKEN_EXCHANGE,
+                        ChatGptOAuthStage.IDENTITY_VERIFICATION,
+                        -> "The browser returned to Let’sStudy, but secure sign-in could not finish. Check your connection and try again."
+                        else -> "Couldn’t reach ChatGPT. Check your connection and try again."
+                    }
+                    ChatGptOAuthFailure.AUTH_REQUIRED -> "The ChatGPT authorization expired. Please connect again."
+                    ChatGptOAuthFailure.TEMPORARY_SERVICE -> "ChatGPT is temporarily unavailable. Try again shortly."
+                    ChatGptOAuthFailure.REGISTRATION_FAILED,
+                    ChatGptOAuthFailure.INVALID_CALLBACK,
+                    ChatGptOAuthFailure.INVALID_RESPONSE,
+                    -> "ChatGPT couldn’t complete the secure connection. Please try again."
+                }
+                _uiState.update { it.copy(chatGptConnectionMessage = message) }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(chatGptConnectionMessage = "Couldn’t connect to ChatGPT. Please try again.") }
+            } finally {
+                _uiState.update { it.copy(chatGptConnectionBusy = false, chatGptConnected = chatGptCredentials.read() != null) }
+            }
+        }
+    }
+
+    fun disconnectChatGpt() {
+        if (_uiState.value.chatGptConnectionBusy) return
+        _uiState.update { it.copy(chatGptConnectionBusy = true, chatGptConnectionMessage = null) }
+        viewModelScope.launch {
+            try {
+                chatGptCredentials.read()?.let { runCatching { chatGptOAuth.revoke(it) } }
+                chatGptCredentials.clearCredentials()
+                chatGptProvider.invalidateModelCatalog()
+                val current = _uiState.value.settings
+                if (current.mode == "CHATGPT") saveSettings(current.copy(mode = "ONLINE"))
+                _uiState.update { it.copy(chatGptConnected = false, chatGptConnectionMessage = "ChatGPT was disconnected from this device.") }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(chatGptConnectionMessage = "Couldn’t remove the ChatGPT connection. Please try again.") }
+            } finally {
+                _uiState.update { it.copy(chatGptConnectionBusy = false, chatGptConnected = chatGptCredentials.read() != null) }
+            }
+        }
+    }
+
+    fun clearChatGptConnectionMessage() = _uiState.update { it.copy(chatGptConnectionMessage = null) }
+
+    fun clearStudyAiNotice() = _uiState.update { it.copy(studyAiNotice = null) }
+
+    fun showError(message: String) = _uiState.update { it.copy(errorMessage = message) }
 
     fun importMaterial(uri: android.net.Uri) = runWorkspace("Reading your document…") {
         val imported = StudyMaterialReader(getApplication()).read(uri)
@@ -427,7 +584,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
                 val thumbnail = path.takeIf(String::isNotBlank)?.let { photoPath ->
                     withContext(Dispatchers.IO) { profilePhotoStore.createLeaderboardThumbnail(photoPath) }
                 }
-                leaderboardRepository.setPhotoSharing(thumbnail != null, thumbnail, currentWeeklyPoints())
+                leaderboardRepository.setPhotoSharing(thumbnail != null, thumbnail, currentWeeklyPoints(), currentStudyStreak())
                 _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
             } catch (error: Exception) {
                 _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }
@@ -444,9 +601,9 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
             } catch (error: Exception) {
                 Log.w("LetsStudyProfile", "Photo import failed (${error.javaClass.simpleName}).")
                 val message = when (error) {
-                    is SecurityException -> "Let’sStudy couldn’t access that image. Select it again and try once more."
-                    is IOException -> "Let’sStudy couldn’t read that image. Choose a PNG or JPEG and try again."
-                    else -> "Let’sStudy couldn’t prepare that image. Choose a PNG or JPEG and try again."
+                    is SecurityException -> "LetsStudy couldn’t access that image. Select it again and try once more."
+                    is IOException -> "LetsStudy couldn’t read that image. Choose a PNG or JPEG and try again."
+                    else -> "LetsStudy couldn’t prepare that image. Choose a PNG or JPEG and try again."
                 }
                 _uiState.update { it.copy(errorMessage = message) }
             } finally {
@@ -512,7 +669,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = true, error = null)) }
         viewModelScope.launch {
             try {
-                leaderboardRepository.publishCurrentScore(currentWeeklyPoints())
+                leaderboardRepository.publishCurrentScore(currentWeeklyPoints(), currentStudyStreak())
                 _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
             } catch (error: Exception) {
                 _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }
@@ -536,7 +693,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
                 val thumbnail = if (sharePhoto) withContext(Dispatchers.IO) {
                     profilePhotoStore.createLeaderboardThumbnail(photoPath)
                 } else null
-                leaderboardRepository.optIn(nickname, currentWeeklyPoints(), thumbnail)
+                leaderboardRepository.optIn(nickname, currentWeeklyPoints(), thumbnail, currentStudyStreak())
                 _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
             } catch (error: Exception) {
                 _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }
@@ -556,7 +713,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
                 val thumbnail = if (enabled) withContext(Dispatchers.IO) {
                     profilePhotoStore.createLeaderboardThumbnail(photoPath)
                 } else null
-                leaderboardRepository.setPhotoSharing(enabled, thumbnail, currentWeeklyPoints())
+                leaderboardRepository.setPhotoSharing(enabled, thumbnail, currentWeeklyPoints(), currentStudyStreak())
                 _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
             } catch (error: Exception) {
                 _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }
@@ -584,6 +741,8 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         val minutes = (dao.getAllActivity().filter { it.startedAt >= weekStart }.sumOf { it.durationSeconds }.coerceAtMost(31_500L) / 60).toInt()
         return (answered * 10 + (minutes / 5)).coerceIn(0, StudyLeaderboardRepository.MAX_WEEKLY_POINTS)
     }
+
+    private suspend fun currentStudyStreak(): Int = studyStreak(dao.getAllQuestions(), dao.getAllActivity())
 
     private fun leaderboardMessage(error: Exception): String = when (error) {
         is com.google.firebase.firestore.FirebaseFirestoreException -> when {
@@ -626,16 +785,93 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun cancelGeneration() { generationJob?.cancel(); workspaceJob?.cancel() }
+    fun cancelGeneration() {
+        generationJob?.cancel()
+        workspaceJob?.cancel()
+        pendingGeneration = null
+        _uiState.update { it.copy(pendingLocalFallback = false) }
+    }
 
-    private fun runWorkspace(status: String, action: suspend () -> Unit) {
+    fun resumePendingGeneration() {
+        val pending = pendingGeneration ?: return
         if (_uiState.value.workspaceBusy || _uiState.value.isAnalyzing || _uiState.value.isGenerating) return
+        _uiState.update { it.copy(pendingLocalFallback = false, chatGptUsageLimitReached = false, errorMessage = null) }
+        when (pending) {
+            is PendingStudyGeneration.AnalyzeJob -> analyze(pending.input, pending.language, pending.mode)
+            is PendingStudyGeneration.CreatePath -> createStudy(pending.setup)
+            is PendingStudyGeneration.GenerateMoreJobQuestions -> {
+                if (_uiState.value.activeSession?.id == pending.sessionId) generateMore(pending.mode)
+                else viewModelScope.launch {
+                    dao.getSession(pending.sessionId)?.let { saved ->
+                        observeSession(saved)
+                        generateMore(pending.mode)
+                    } ?: clearPendingGeneration(pending)
+                }
+            }
+            is PendingStudyGeneration.AddRound -> viewModelScope.launch {
+                val saved = dao.getSession(pending.sessionId)
+                if (saved == null) {
+                    clearPendingGeneration(pending)
+                    return@launch
+                }
+                observeSession(saved)
+                val module = pending.moduleId?.let { id -> saved.modules().firstOrNull { it.id == id } }
+                addPractice(pending.format, module, pending.format == PracticeFormat.INTERVIEW, pending.mode)
+            }
+            is PendingStudyGeneration.EvaluateAnswer -> viewModelScope.launch {
+                val question = dao.getQuestion(pending.questionId)
+                val session = question?.let { dao.getSession(it.sessionId) }
+                if (question == null || session == null) {
+                    clearPendingGeneration(pending)
+                    return@launch
+                }
+                observeSession(session)
+                _uiState.update { it.copy(selectedQuestion = question, activeSession = session) }
+                if (pending.workspaceAnswer) answerPractice(pending.answer, pending.selfRating)
+                else submitAnswer(pending.answer)
+            }
+            is PendingStudyGeneration.GenerateLesson -> viewModelScope.launch {
+                val question = dao.getQuestion(pending.questionId)
+                val session = question?.let { dao.getSession(it.sessionId) }
+                if (question == null || session == null) {
+                    clearPendingGeneration(pending)
+                    return@launch
+                }
+                observeSession(session)
+                _uiState.update { it.copy(selectedQuestion = question, activeSession = session) }
+                requestConceptLesson()
+            }
+            is PendingStudyGeneration.TutorMessage -> viewModelScope.launch {
+                val session = dao.getSession(pending.sessionId)
+                val question = pending.questionId?.let { dao.getQuestion(it) }
+                if (session == null) {
+                    clearPendingGeneration(pending)
+                    return@launch
+                }
+                observeSession(session)
+                _uiState.update { it.copy(selectedQuestion = question, activeSession = session) }
+                askTutor(pending.text, question != null)
+            }
+        }
+    }
+
+    private fun runWorkspace(status: String, pending: PendingStudyGeneration? = null, action: suspend () -> Unit) {
+        if (_uiState.value.workspaceBusy || _uiState.value.isAnalyzing || _uiState.value.isGenerating) return
+        if (_uiState.value.pendingLocalFallback && pending != pendingGeneration) return
+        if (pending != null) setPendingGeneration(pending)
         _uiState.update { it.copy(workspaceBusy = true, workspaceStatus = status, errorMessage = null) }
         workspaceJob = viewModelScope.launch {
-            try { action() }
-            catch (error: CancellationException) { throw error }
+            try {
+                action()
+                pending?.let(::clearPendingGeneration)
+            }
+            catch (error: CancellationException) {
+                pending?.let(::clearPendingGeneration)
+                throw error
+            }
             catch (error: Exception) {
                 val message = if (error is IllegalArgumentException || error is IllegalStateException) error.message ?: friendlyMessage(error) else friendlyMessage(error)
+                pending?.let { keepPendingOnlyForLocalFallback(it, error) }
                 _uiState.update { it.copy(errorMessage = message) }
             } finally { _uiState.update { it.copy(workspaceBusy = false, workspaceStatus = "") } }
         }
@@ -653,7 +889,63 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun cancelModelDownload() = modelDownloadRepository.cancelDownload()
 
+    private fun setPendingGeneration(pending: PendingStudyGeneration) {
+        pendingGeneration = pending
+        _uiState.update { it.copy(pendingLocalFallback = false, chatGptUsageLimitReached = false) }
+    }
+
+    private fun clearPendingGeneration(pending: PendingStudyGeneration) {
+        if (pendingGeneration == pending) {
+            pendingGeneration = null
+            _uiState.update { it.copy(pendingLocalFallback = false, chatGptUsageLimitReached = false) }
+        }
+    }
+
+    private fun keepPendingOnlyForLocalFallback(pending: PendingStudyGeneration, error: Throwable) {
+        val localModelRequired = requiresLocalModel(error)
+        val usageLimitReached = hasChatGptUsageLimit(error)
+        if (localModelRequired || usageLimitReached) {
+            pendingGeneration = pending
+            _uiState.update { it.copy(pendingLocalFallback = localModelRequired, chatGptUsageLimitReached = usageLimitReached) }
+        } else {
+            clearPendingGeneration(pending)
+        }
+    }
+
+    private fun hasChatGptUsageLimit(error: Throwable): Boolean {
+        var current: Throwable? = error
+        while (current != null) {
+            if (current is StudyAiException && (current.kind == StudyAiErrorKind.USAGE_LIMIT ||
+                current.kind == StudyAiErrorKind.MODEL_NOT_AVAILABLE && current.fallbackReason == StudyAiErrorKind.USAGE_LIMIT)
+            ) return true
+            current = current.cause
+        }
+        return false
+    }
+
+    private fun requiresLocalModel(error: Throwable): Boolean {
+        var current: Throwable? = error
+        while (current != null) {
+            if (current is ModelUnavailableException ||
+                current is StudyAiException && current.kind == StudyAiErrorKind.MODEL_NOT_AVAILABLE
+            ) return true
+            current = current.cause
+        }
+        return false
+    }
+
     private fun friendlyMessage(error: Exception): String = when (error) {
+        is StudyAiException -> when (error.kind) {
+            StudyAiErrorKind.AUTH_REQUIRED -> "Connect ChatGPT in Settings before choosing it for study generation."
+            StudyAiErrorKind.NOT_ELIGIBLE -> "This ChatGPT account or plan cannot be used by Let’sStudy. Choose Gemini or On-device in Settings."
+            StudyAiErrorKind.USAGE_LIMIT -> "You’ve reached the current ChatGPT plan usage limit. Manage it in ChatGPT Settings → Usage, or turn on On-device fallback in Let’sStudy Settings."
+            StudyAiErrorKind.USAGE_UNAVAILABLE -> "ChatGPT could not check plan usage right now. Try again later; this does not mean your allowance is exhausted."
+            StudyAiErrorKind.MODEL_NOT_AVAILABLE -> "The On-device model is needed to continue this study. Download it from Settings, then resume the same action."
+            StudyAiErrorKind.UNSUPPORTED_CAPABILITY -> "ChatGPT can’t complete this type of study request. Choose Gemini or On-device in Settings."
+            StudyAiErrorKind.NETWORK -> "Couldn’t reach the selected study service. Check your connection and try again."
+            StudyAiErrorKind.TEMPORARY_SERVICE -> "The selected study service is temporarily unavailable. Try again shortly."
+            StudyAiErrorKind.INVALID_RESPONSE -> "The study service returned an incomplete response. Your saved studies are safe; try again."
+        }
         is StudyGenerationException -> {
             error.cause?.message?.let { Log.w("LetsStudyAI", it) }
             StudyGenerationCopy.forGenerationError(error.code, error.message)
@@ -661,6 +953,15 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         is ModelUnavailableException -> "This study option needs a one-time download. Open Settings to get it ready."
         is InvalidStudyOutputException -> "We couldn't finish this study. Try again in a moment. Your saved studies are safe."
         else -> StudyGenerationCopy.onlineFailure(error)
+    }
+
+    private fun com.oriol.letsstudy.ai.StudyAiTask.displayName(): String = when (this) {
+        com.oriol.letsstudy.ai.StudyAiTask.JOB_QUESTIONS -> "job questions"
+        com.oriol.letsstudy.ai.StudyAiTask.STUDY_PATH -> "study path"
+        com.oriol.letsstudy.ai.StudyAiTask.PRACTICE_ROUND -> "practice round"
+        com.oriol.letsstudy.ai.StudyAiTask.ANSWER_FEEDBACK -> "answer feedback"
+        com.oriol.letsstudy.ai.StudyAiTask.CONCEPT_LESSON -> "lesson"
+        com.oriol.letsstudy.ai.StudyAiTask.TUTOR -> "tutor reply"
     }
 
     class Factory(private val application: Application) : androidx.lifecycle.ViewModelProvider.Factory {

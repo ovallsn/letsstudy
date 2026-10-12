@@ -210,6 +210,7 @@ internal class SharedPreferencesCredentialPreferences(
 ) : CredentialPreferences {
     override fun getString(key: String): String? = preferences.getString(key, null)
 
+    @Suppress("UseKtx")
     override fun commit(puts: Map<String, String>, removals: Set<String>): Boolean {
         val editor = preferences.edit()
         removals.forEach(editor::remove)

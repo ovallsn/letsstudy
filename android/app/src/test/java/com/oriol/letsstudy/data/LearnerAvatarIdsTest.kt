@@ -18,13 +18,13 @@ class LearnerAvatarIdsTest {
 
     @Test
     fun createsInitialsFromTheFirstAndLastName() {
-        assertEquals("ON", LearnerAvatarIds.initials("Oriol Baiz Núñez"))
-        assertEquals("OB", LearnerAvatarIds.initials("Oriol Baiz"))
+        assertEquals("AL", LearnerAvatarIds.initials("Alex Jordan Lee"))
+        assertEquals("AM", LearnerAvatarIds.initials("Alex Morgan"))
     }
 
     @Test
     fun handlesSingleNamesAndBlankNames() {
-        assertEquals("OR", LearnerAvatarIds.initials("Oriol"))
+        assertEquals("AL", LearnerAvatarIds.initials("Alex"))
         assertEquals("LS", LearnerAvatarIds.initials("  "))
     }
 }

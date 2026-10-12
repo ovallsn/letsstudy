@@ -25,11 +25,13 @@ class StudyAiRouterTest {
     fun fallsBackOnlyForOptedInChatGptUsageLimit() = runBlocking {
         val chatGpt = FakeProvider(StudyAiProviderId.CHATGPT) { throw StudyAiException(StudyAiErrorKind.USAGE_LIMIT) }
         val local = FakeProvider(StudyAiProviderId.ON_DEVICE) { "Local response" }
+        var fallbackTask: StudyAiTask? = null
 
-        val result = StudyAiRouter(mapOf(chatGpt.id to chatGpt, local.id to local))
+        val result = StudyAiRouter(mapOf(chatGpt.id to chatGpt, local.id to local), onLocalFallback = { fallbackTask = it })
             .generate(request, StudyAiProviderId.CHATGPT, localFallbackOnChatGptLimit = true)
 
         assertEquals("Local response", result)
+        assertEquals(StudyAiTask.TUTOR, fallbackTask)
         assertEquals(1, chatGpt.calls)
         assertEquals(1, local.calls)
     }
@@ -45,6 +47,7 @@ class StudyAiRouterTest {
             fail("Expected a model availability error")
         } catch (error: StudyAiException) {
             assertEquals(StudyAiErrorKind.MODEL_NOT_AVAILABLE, error.kind)
+            assertEquals(StudyAiErrorKind.USAGE_LIMIT, error.fallbackReason)
         }
         assertEquals(1, local.calls)
     }
