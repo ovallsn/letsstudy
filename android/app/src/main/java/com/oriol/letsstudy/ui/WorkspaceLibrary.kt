@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.oriol.letsstudy.data.*
 import com.oriol.letsstudy.ai.ModelCatalog
 import com.oriol.letsstudy.ai.ModelState
+import com.oriol.letsstudy.LegalLinks
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -419,6 +420,8 @@ fun WorkspaceSettings(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
             WorkspaceCard {
                 Text("Privacy & your data", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("Your studies are saved on this phone. If you enable account sync, your profile and study library are stored in your private account. Gemini sends the material you provide, answers and tutor messages to Google when it handles a study request. ChatGPT sends the study material, answers or tutor message for that request to OpenAI after you connect an eligible account and accept its separate notice. On-device study uses the model you download. Scanned PDFs are read on your phone before the extracted text is sent to a provider you choose. The optional community board shows your chosen name, profile photo or initials, points and streak after you join; your email and study content stay private.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, LegalLinks.PRIVACY.toUri())) }) { Text("Read privacy policy") }
+                TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, LegalLinks.DELETE_ACCOUNT.toUri())) }) { Text("Account deletion help") }
                 TextButton({ clearConfirm = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete all study data") }
                 TextButton({ showNotices = true }) { Text("Third-party licenses") }
             }

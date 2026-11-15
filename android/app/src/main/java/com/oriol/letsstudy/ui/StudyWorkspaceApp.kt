@@ -179,7 +179,7 @@ fun StudyWorkspaceApp(viewModel: LetsStudyViewModel) {
                 bottomBar = { if (state.selectedQuestion == null && !showTutor) AppBottomNavigation(destination, navigate) }) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
                     when {
-                        showTutor && state.activeSession != null -> WorkspaceTutor(state, tutorQuestion, { showTutor = false }) { message -> runWithProvider(state.settings.mode) { viewModel.askTutor(message, tutorQuestion) } }
+                        showTutor && state.activeSession != null -> WorkspaceTutor(state, viewModel, tutorQuestion, { showTutor = false }) { message -> runWithProvider(state.settings.mode) { viewModel.askTutor(message, tutorQuestion) } }
                         state.selectedQuestion != null && state.activeSession != null -> WorkspacePractice(state, viewModel,
                             onTutor = { tutorQuestion = true; showTutor = true }, onLesson = { runWithProvider(state.activeSession?.generationMode ?: state.settings.mode, viewModel::requestConceptLesson) },
                             onAnswer = { answer ->

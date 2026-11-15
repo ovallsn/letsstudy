@@ -154,6 +154,7 @@ fun WorkspacePractice(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
     var showExplanation by rememberSaveable(question.id) { mutableStateOf(false) }
     var showTheory by rememberSaveable(question.id) { mutableStateOf(false) }
     var speechError by rememberSaveable(question.id) { mutableStateOf<String?>(null) }
+    var reportQuestion by rememberSaveable(question.id) { mutableStateOf(false) }
     val context = LocalContext.current
     val speechIntent = remember(session.practiceLanguage) { Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -191,6 +192,7 @@ fun WorkspacePractice(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
             item {
                 Text(question.topic, style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Muted)
                 Text(question.prompt, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, fontFamily = if (question.format == PracticeFormat.CODE.name) FontFamily.Monospace else MaterialTheme.typography.headlineSmall.fontFamily, modifier = Modifier.padding(top = 8.dp))
+                TextButton(onClick = { reportQuestion = true }) { Text("Report generated question") }
             }
             if (objective) {
                 items(options.indices.toList()) { choice ->
@@ -254,13 +256,24 @@ fun WorkspacePractice(state: LetsStudyUiState, viewModel: LetsStudyViewModel, on
         text = { Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(options.getOrNull(question.correctOptionIndex).orEmpty(), fontWeight = FontWeight.Bold); Text(question.explanation)
         } }, confirmButton = { TextButton({ showExplanation = false }) { Text("Got it") } }, dismissButton = { TextButton({ showExplanation = false; showTheory = true }) { Text("More theory") } })
-    if (showTheory) WorkspaceTheory(state, question, { showTheory = false }, onLesson)
+    if (showTheory) WorkspaceTheory(state, question, viewModel, { showTheory = false }, onLesson)
+    if (reportQuestion) ContentReportDialog("Report generated question", onDismiss = { reportQuestion = false }) { reason ->
+        viewModel.reportContent("generated", question.id, reason, question.prompt)
+        reportQuestion = false
+    }
+    state.contentReportMessage?.let { message -> AlertDialog(
+        onDismissRequest = viewModel::clearContentReportMessage,
+        title = { Text("Content report") },
+        text = { Text(message) },
+        confirmButton = { TextButton(onClick = viewModel::clearContentReportMessage) { Text("OK") } },
+    ) }
 }
 
 @Composable
-private fun WorkspaceTheory(state: LetsStudyUiState, question: StudyQuestionEntity, onDismiss: () -> Unit, onRequest: () -> Unit) {
+private fun WorkspaceTheory(state: LetsStudyUiState, question: StudyQuestionEntity, viewModel: LetsStudyViewModel, onDismiss: () -> Unit, onRequest: () -> Unit) {
     val lesson = remember(question.conceptLessonJson) { if (question.conceptLessonJson.isBlank()) null else runCatching { StudyOutputParser.parseConceptLesson(question.conceptLessonJson) }.getOrNull() }
     val loading = question.id in state.conceptLessonLoadingQuestionIds
+    var reportLesson by rememberSaveable(question.id) { mutableStateOf(false) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Understand ${question.topic}") },
         text = { Column(Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(question.explanation.ifBlank { question.reasoningFeedback })
@@ -269,6 +282,7 @@ private fun WorkspaceTheory(state: LetsStudyUiState, question: StudyQuestionEnti
                 if (lesson.keyTerms.isNotEmpty()) Text("Terms to know", fontWeight = FontWeight.Bold)
                 lesson.keyTerms.forEach { term -> Text(term.term, fontWeight = FontWeight.SemiBold); Text(term.definition) }
                 Text("Remember this", fontWeight = FontWeight.Bold); Text(lesson.rememberThis)
+                TextButton(onClick = { reportLesson = true }) { Text("Report this lesson") }
             } else {
                 Text("Go deeper with a definition, how it works, an example and key terms. Your lesson is saved with this question.", style = MaterialTheme.typography.bodySmall)
                 if (loading) CircularProgressIndicator(Modifier.size(24.dp))
@@ -276,14 +290,29 @@ private fun WorkspaceTheory(state: LetsStudyUiState, question: StudyQuestionEnti
                 state.conceptLessonErrorCodes[question.id]?.let { code -> Text(when (code) { "QUOTA" -> "The study service is temporarily unavailable. Try again later."; "NETWORK" -> "Check your internet connection and try again."; else -> "The lesson couldn't be created. Try again." }, color = MaterialTheme.colorScheme.error) }
             }
         } }, confirmButton = { TextButton(onDismiss) { Text("Back to practice") } })
+    if (reportLesson) ContentReportDialog("Report generated lesson", onDismiss = { reportLesson = false }) { reason ->
+        val excerpt = lesson?.let { generated ->
+            (generated.sections.joinToString("\n") { "${it.title}\n${it.content}" } + "\n" +
+                generated.keyTerms.joinToString("\n") { "${it.term}: ${it.definition}" } + "\n" + generated.rememberThis)
+        }.orEmpty()
+        viewModel.reportContent("generated", question.id, reason, excerpt)
+        reportLesson = false
+    }
+    state.contentReportMessage?.let { message -> AlertDialog(
+        onDismissRequest = viewModel::clearContentReportMessage,
+        title = { Text("Content report") },
+        text = { Text(message) },
+        confirmButton = { TextButton(onClick = viewModel::clearContentReportMessage) { Text("OK") } },
+    ) }
 }
 
 @Composable
-fun WorkspaceTutor(state: LetsStudyUiState, questionContext: Boolean, onBack: () -> Unit, onSend: (String) -> Unit) {
+fun WorkspaceTutor(state: LetsStudyUiState, viewModel: LetsStudyViewModel, questionContext: Boolean, onBack: () -> Unit, onSend: (String) -> Unit) {
     val session = state.activeSession ?: return
     val question = if (questionContext) state.selectedQuestion else null
     val messages = state.messages.filter { it.sessionId == session.id && it.questionId == question?.id.orEmpty() }
     var draft by rememberSaveable(session.id, question?.id) { mutableStateOf("") }
+    var reportMessageId by rememberSaveable(session.id, question?.id) { mutableStateOf<String?>(null) }
     val scroll = rememberLazyListState()
     LaunchedEffect(messages.size) {
         if (messages.lastOrNull()?.role == "assistant" && messages.dropLast(1).lastOrNull()?.text == draft.trim()) draft = ""
@@ -314,9 +343,23 @@ fun WorkspaceTutor(state: LetsStudyUiState, questionContext: Boolean, onBack: ()
                 WorkspaceCard(color = if (message.role == "user") LetsStudyColors.Mint else LetsStudyColors.Card) {
                     Text(if (message.role == "user") "You" else "Study tutor", style = MaterialTheme.typography.labelMedium, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
                     Text(message.text, style = MaterialTheme.typography.bodyLarge)
+                    if (message.role == "assistant") TextButton(onClick = { reportMessageId = message.id }) { Text("Report tutor answer") }
                 }
             }
             if (state.workspaceBusy) item { Text("Thinking through your question…", color = LetsStudyColors.Muted) }
         }
     }
+    reportMessageId?.let { id ->
+        val reported = messages.firstOrNull { it.id == id }
+        ContentReportDialog("Report tutor answer", onDismiss = { reportMessageId = null }) { reason ->
+            viewModel.reportContent("generated", id, reason, reported?.text.orEmpty())
+            reportMessageId = null
+        }
+    }
+    state.contentReportMessage?.let { message -> AlertDialog(
+        onDismissRequest = viewModel::clearContentReportMessage,
+        title = { Text("Content report") },
+        text = { Text(message) },
+        confirmButton = { TextButton(onClick = viewModel::clearContentReportMessage) { Text("OK") } },
+    ) }
 }

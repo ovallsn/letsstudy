@@ -75,6 +75,8 @@ data class LetsStudyUiState(
     val settings: LearnerSettings = LearnerSettings(),
     val account: StudyAccountState = StudyAccountState(),
     val leaderboard: StudyLeaderboardState = StudyLeaderboardState(),
+    val blockedCommunityIds: Set<String> = emptySet(),
+    val contentReportMessage: String? = null,
     val chatGptConnected: Boolean = false,
     val chatGptConnectionBusy: Boolean = false,
     val chatGptConnectionMessage: String? = null,
@@ -130,6 +132,7 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
     private val dao = StudyDatabase.get(application).studyDao()
     private val accountSync = StudyAccountSync(dao)
     private val leaderboardRepository = StudyLeaderboardRepository()
+    private val contentSafety = ContentSafetyRepository(application)
     private val preferences = StudyPreferences(application)
     private val profilePhotoStore = ProfilePhotoStore(application)
     private var pendingGeneration: PendingStudyGeneration? = null
@@ -670,11 +673,35 @@ class LetsStudyViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             try {
                 leaderboardRepository.publishCurrentScore(currentWeeklyPoints(), currentStudyStreak())
-                _uiState.update { it.copy(leaderboard = leaderboardRepository.load()) }
+                _uiState.update { it.copy(leaderboard = leaderboardRepository.load(), blockedCommunityIds = contentSafety.blockedIds()) }
             } catch (error: Exception) {
                 _uiState.update { it.copy(leaderboard = it.leaderboard.copy(isLoading = false, error = leaderboardMessage(error))) }
             }
         }
+    }
+
+    fun blockCommunityEntry(entryId: String) {
+        _uiState.update { it.copy(blockedCommunityIds = contentSafety.block(entryId)) }
+    }
+
+    fun unblockCommunityEntry(entryId: String) {
+        _uiState.update { it.copy(blockedCommunityIds = contentSafety.unblock(entryId)) }
+    }
+
+    fun reportContent(kind: String, subjectId: String, reason: String, excerpt: String) {
+        _uiState.update { it.copy(contentReportMessage = "Sending report…") }
+        viewModelScope.launch {
+            try {
+                contentSafety.report(kind, subjectId, reason, excerpt)
+                _uiState.update { it.copy(contentReportMessage = "Report sent. Thank you for helping keep LetsStudy safe.") }
+            } catch (error: Exception) {
+                _uiState.update { it.copy(contentReportMessage = "Report could not be sent. Check your connection and try again.") }
+            }
+        }
+    }
+
+    fun clearContentReportMessage() {
+        _uiState.update { it.copy(contentReportMessage = null) }
     }
 
     fun enableLeaderboard(nickname: String, sharePhoto: Boolean) {

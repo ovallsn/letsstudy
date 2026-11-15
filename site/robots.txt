@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://letsstudy.vallssolutions.com/sitemap.xml

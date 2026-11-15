@@ -1,5 +1,13 @@
 # Launch readiness
 
+## Play preparation update — 15 November 2026
+
+Version 0.10.0 on branch `play-store-readiness` adds a neutral first-launch age choice, curated local lessons for ages 9–17, adult in-app content reporting and community blocking, private report rules, a moderator ban path, public privacy/deletion site files, Play store assets and a signed-AAB CI workflow. The original audit below remains a record of the October build, not a certification of the new version.
+
+The youth route was exercised on an isolated Android emulator user; the age screen, 9–12 and 13–17 lessons, answer reveal and adult route rendered. The final local checks passed: 118 Android unit tests, 9 Firestore rules emulator tests, `lintDebug` with 26 warnings and 5 hints (the baseline counts), and an unsigned `bundleRelease` (56.7 MB). R8 still reports its pre-existing Kotlin metadata warnings. Browser checks of the local privacy and deletion pages found no WCAG 2 A/AA automated violations at the tested mobile size, and no horizontal overflow at the tested desktop, tablet and mobile widths. The public domain is not yet deployed or verified.
+
+**Still required before submitting to Play:** configure the custom-domain DNS and enable GitHub Pages; confirm the exact legal publisher name and mailbox operation; provide the real upload key and GitHub Actions secrets; publish the updated Firestore rules and enforce App Check; verify no third-party network collection on the youth path; run real-device and Play internal-testing flows; staff the report review queue; complete Data safety, Families, content rating, AI, foreground-service and listing declarations in Play Console. No Play approval is implied by local tests. See [release.md](release.md) and [moderation.md](moderation.md).
+
 Audit date: 10 October 2026. This is a native Android application review on an isolated Android emulator, not a production certification.
 
 ## What was checked

@@ -1,6 +1,6 @@
 # Preparing a signed Android build
 
-The normal GitHub checks create a debug APK and an unsigned release APK. The optional **Signed Android build** workflow signs a review APK with your private key and Firebase configuration. It does not publish the app, upload it to Google Play, change Firebase settings or make AI quota unlimited.
+The normal GitHub checks create a debug APK and an unsigned release build. The optional **Signed Android build** workflow signs both a review APK and an Android App Bundle (AAB) for Play with your private upload key and Firebase configuration. It does not publish the app, upload it to Google Play, change Firebase settings or make AI quota unlimited.
 
 ## First choose the signing key
 
@@ -48,17 +48,28 @@ To put the keystore’s Base64 text on the Windows clipboard without printing it
 
 Do not paste the Firebase file, keystore, passwords, full Base64 value or App Check debug token in a GitHub issue, chat or source file. GitHub stores these as Actions secrets. The workflow reconstructs the Firebase file and keystore only on its temporary runner and removes them at the end.
 
-## Run and install the review APK
+## Run and inspect the signed build
 
 1. Open the repository’s **Actions** tab.
 2. Select **Signed Android build**.
 3. Select **Run workflow** and confirm the branch is `main`.
-4. When the run succeeds, open its summary and download the `letsstudy-signed-apk` artifact.
+4. When the run succeeds, download `letsstudy-signed-apk` to test on a phone and `letsstudy-signed-aab` for Play Console.
 5. Extract the APK. Connect the phone with USB debugging and install with Android Studio, or run `adb install -r app-release.apk` from the folder containing the APK.
+6. Upload the AAB to Play Console internal testing after completing the release checklist below. Play App Signing must be enabled for the app.
 
 The artifact expires after 14 days. Because the repository is public, assume that anyone able to view its Actions runs can access that artifact during retention. Do not run the workflow until you are ready for that build to be shared. Confirm the installed app displays the expected version and Firebase project before testing.
 
-The current workflow produces a signed APK for review. Google Play releases should use an Android App Bundle (`.aab`) and Play Console’s app-signing workflow; this APK artifact is not itself a Play Store submission. A later AAB workflow can reuse the protected signing setup if you decide to publish through Play.
+The APK artifact is only for direct review. The AAB is the Play submission file; inspect its package name, version code (12), upload certificate and permissions before uploading. Keep the upload keystore backed up privately. A local `:app:bundleRelease` without the signing variables is intentionally unsigned and cannot be uploaded.
+
+## Play Console checklist for version 0.10.0
+
+1. Publish the site at `https://letsstudy.vallssolutions.com/` and verify that `/privacy/` and `/delete-account/` load publicly. Enter those URLs in the privacy policy and account-deletion fields. The site files are in `site/`; DNS and Pages activation are separate account-level steps.
+2. Select age groups **9–12, 13–15, 16–17 and 18+** in Target audience and content. The neutral first-launch age screen routes ages 9–17 to offline curated lessons, with no account, AI, microphone, file import or community. Complete the Families policy and Data safety forms based on the installed release build. Do not claim that the app collects no data overall, because adult features use Firebase and optional AI providers.
+3. Declare the data-sync foreground service used for the optional model download and provide the Play Console description and demonstration requested for foreground-service permissions. Confirm notification and microphone prompts are accurately described for the adult route.
+4. Use the 512×512 store icon, 1024×500 feature graphic and phone screenshots under `play-listing/`. Review them against the final build, especially the new youth route; replace any screenshot that no longer reflects the UI.
+5. Fill in the content rating, app access, ads (none), AI-generated content and community moderation declarations. `admin@vallssolutions.com` must be monitored for deletion and safety requests. Review Firestore `contentReports` regularly and take action on reported public profiles. Publish the updated `firestore.rules` before enabling reports in a release build.
+6. Install from Play internal testing. Verify first launch for each age band, adult sign-in/sync/deletion, report/block, online AI disclosure, App Check, notifications and model download on real devices. Run a child-route network capture to confirm no Firebase or other SDK request before considering Families compliance complete.
+7. If this is a newly created personal Play developer account, complete the required closed testing period before applying for production access. Confirm the current eligibility rules in your own Play Console.
 
 For the audit status, emulator test scope, known release checks and hosted-AI research, see [launch-readiness.md](launch-readiness.md).
 
