@@ -22,6 +22,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(userId)/leaderboard/settings;
     }
 
+    function canPublishToLeaderboard(userId) {
+      return !exists(/databases/$(database)/documents/moderationBans/$(userId));
+    }
+
     function normalizedUsername(value) {
       return value.replace('_', '')
         .replace('0', 'o')
@@ -185,10 +189,12 @@ service cloud.firestore {
       allow get: if request.auth != null && resource.data.ownerUid == request.auth.uid;
       allow list: if false;
       allow create: if request.auth != null
+        && canPublishToLeaderboard(request.auth.uid)
         && validLeaderboardOwner(entryId, request.resource.data)
         && request.resource.data.ownerUid == request.auth.uid
         && settingsAreActiveFor(entryId, request.auth.uid);
       allow update: if request.auth != null
+        && canPublishToLeaderboard(request.auth.uid)
         && resource.data.ownerUid == request.auth.uid
         && validLeaderboardOwner(entryId, request.resource.data)
         && request.resource.data.ownerUid == request.auth.uid
@@ -200,9 +206,11 @@ service cloud.firestore {
       allow get: if request.auth != null;
       allow list: if request.auth != null && request.query.limit <= 25;
       allow create: if request.auth != null
+        && canPublishToLeaderboard(request.auth.uid)
         && validPublicLeaderboardEntry(request.resource.data)
         && publicEntryHasActiveOwner(entryId, request.resource.data, request.auth.uid);
       allow update: if request.auth != null
+        && canPublishToLeaderboard(request.auth.uid)
         && validPublicLeaderboardEntry(request.resource.data)
         && (request.resource.data.weekKey != resource.data.weekKey
           || request.resource.data.weeklyPoints >= resource.data.weeklyPoints)
@@ -210,6 +218,27 @@ service cloud.firestore {
       allow delete: if request.auth != null
         && exists(leaderboardOwnerPath(entryId))
         && get(leaderboardOwnerPath(entryId)).data.ownerUid == request.auth.uid;
+    }
+
+    match /contentReports/{reportId} {
+      allow read, update, delete: if false;
+      allow create: if reportId.size() >= 20
+        && reportId.size() <= 40
+        && request.resource.data.keys().hasOnly(['kind', 'subjectId', 'reason', 'excerpt', 'createdAt'])
+        && request.resource.data.keys().hasAll(['kind', 'subjectId', 'reason', 'excerpt', 'createdAt'])
+        && request.resource.data.kind in ['community', 'generated']
+        && (request.resource.data.kind != 'community' || request.auth != null)
+        && request.resource.data.subjectId is string
+        && request.resource.data.subjectId.size() >= 1
+        && request.resource.data.subjectId.size() <= 100
+        && request.resource.data.reason in ['unsafe', 'inappropriate', 'incorrect', 'other']
+        && request.resource.data.excerpt is string
+        && request.resource.data.excerpt.size() <= 500
+        && request.resource.data.createdAt == request.time;
+    }
+
+    match /moderationBans/{userId} {
+      allow read, write: if false;
     }
   }
 }

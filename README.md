@@ -16,9 +16,15 @@
   <img src="https://img.shields.io/badge/platform-Android-3b7a57.svg" alt="Android app">
 </p>
 
-LetsStudy is a native Android learning app for people with something specific they want to understand or prepare for. Start with a subject, a job listing, a language goal, or a document. Follow a study path, practise with questions, see why an answer works, and return to your saved progress.
+LetsStudy is a native Android learning app for ages 9 and up. On first launch, a neutral age choice opens offline, curated lessons for ages 9–17 or the full study workspace for adults. Adults can start with a subject, a job listing, a language goal, or a document, then follow a study path, practise with questions, and return to saved progress.
 
-## One app, different reasons to learn
+**Release status:** version 0.10.0 is a Play preparation build, not a published release. See the [release checklist](docs/release.md) for remaining account, Families, Firebase and Play Console verification.
+
+## For learners aged 9–17
+
+The 9–12 and 13–17 routes contain age-specific maths, science or digital judgement questions with explanations. Answers remain on the phone and can be erased from the lesson list. These routes do not offer accounts, community sharing, online AI, file or URL import, microphone or profile photos. The age choice is saved locally; children under 9 are shown a notice that the app is not designed for them. A live device network check and Families policy review are required before public distribution to children.
+
+## Adult study workspace
 
 - **Learn a topic.** Choose a subject such as European law, networking, or a new technical skill. LetsStudy creates an ordered path with lessons and practice so a broad goal has a useful next step.
 - **Improve a language.** Take an original short written check in English, Spanish, French, or Thai. Use the approximate result to choose a starting point, study with examples and common mistakes, and take a later check to move up a level.
@@ -30,9 +36,23 @@ The language check is a study recommendation based on a short sample of written 
 
 ## A look inside
 
-These are native Android screens with fictional study content and a demo profile. They do not contain a real learner’s account or study history.
+These are native Android screens with fictional study content, an isolated youth profile and a demo adult profile. They do not contain a real learner’s account or study history.
 
 <table>
+  <tr>
+    <th>Choose an age range</th>
+    <th>Explore an offline lesson · ages 9–12</th>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/age-screen.png" alt="Neutral age-range choice on first launch" width="190"></td>
+    <td><img src="docs/screenshots/youth-answer.png" alt="Curated maths question with an answer explanation for learners aged 9 to 12" width="190"></td>
+  </tr>
+  <tr>
+    <th colspan="2">Explore a separate offline lesson · ages 13–17</th>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/teen-home.png" alt="Teen study route with practical maths and digital judgement courses" width="190"></td>
+  </tr>
   <tr>
     <th>Start with a goal</th>
     <th>Choose how to study</th>
@@ -87,6 +107,8 @@ Generated material can be incomplete or wrong. Check legal, medical, safety, and
 - Gemini and ChatGPT requests are sent to their respective providers when selected. The app shows a separate disclosure before first use. On-device generation keeps the prompt on the phone.
 - The optional community board is separate from private study sync. Joining shares a chosen nickname and self-reported weekly points with signed-in learners. A profile-photo thumbnail is shared only after a separate opt-in. Email, study topics, answers, and account IDs are not included in the board entry.
 - The full profile photo remains in local app storage. The optional board receives only a small resized thumbnail; turning photo sharing off or leaving the board removes that public copy.
+- Adults can report generated questions, tutor answers and public community profiles. Community profiles can be hidden locally. Reports are private Firestore records that require an operator to review; see [moderation](docs/moderation.md).
+- The public [privacy policy](https://letsstudy.vallssolutions.com/privacy/) and [account deletion page](https://letsstudy.vallssolutions.com/delete-account/) are prepared under `site/`. These URLs must be deployed and verified before submitting to Play.
 
 ## Built for Android
 
@@ -127,13 +149,13 @@ cd android
 ./gradlew.bat :app:assembleDebug
 ```
 
-The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. For the documented test, lint, and unsigned release tasks, run:
+The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. For the documented test, lint, and unsigned Play bundle tasks, run:
 
 ```powershell
-./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
+./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:bundleRelease
 ```
 
-GitHub Actions also runs Android checks and Firestore rules tests in the local Firebase emulator. The release build from CI is unsigned; distributing an APK or publishing to Google Play requires maintainer-controlled signing configuration. See [`docs/release.md`](docs/release.md).
+GitHub Actions also runs Android checks and Firestore rules tests in the local Firebase emulator. The normal CI release build is unsigned. The separate manual Signed Android build workflow produces a signed APK for review and a signed AAB for Play when the maintainer configures the private signing secrets. Store graphics and screenshots are under [`play-listing/`](play-listing/). See [`docs/release.md`](docs/release.md).
 
 ## License
 

@@ -44,6 +44,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.oriol.letsstudy.data.LearnerAvatarIds
+import com.oriol.letsstudy.data.CommunityEntryVisibility
 import com.oriol.letsstudy.data.UsernamePolicy
 
 @Composable
@@ -51,6 +52,7 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
     var nickname by rememberSaveable { mutableStateOf("") }
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
     var sharePhotoOnJoin by rememberSaveable { mutableStateOf(false) }
+    var reportEntryId by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(state.account.email, state.account.profileComplete) { viewModel.refreshLeaderboard() }
     LaunchedEffect(state.account.username, state.leaderboard.nickname) {
         when {
@@ -116,7 +118,7 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
                         )
                     }
                     if (leaderboard.entries.isEmpty()) WorkspaceEmpty("A fresh week", "Your points will appear here after someone joins and studies.")
-                    leaderboard.entries.forEachIndexed { index, entry ->
+                    CommunityEntryVisibility.visible(leaderboard.entries, state.blockedCommunityIds).forEachIndexed { index, entry ->
                         val mine = entry.id == leaderboard.myEntryId
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
@@ -145,6 +147,14 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
                                 Text("${entry.weeklyPoints} pts", style = MaterialTheme.typography.labelLarge, color = LetsStudyColors.Primary, fontWeight = FontWeight.Bold)
                             }
                         }
+                        if (!mine) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { reportEntryId = entry.id }) { Text("Report") }
+                            TextButton(onClick = { viewModel.blockCommunityEntry(entry.id) }) { Text("Block") }
+                        }
+                    }
+                    if (state.blockedCommunityIds.isNotEmpty()) {
+                        Text("${state.blockedCommunityIds.size} blocked profile(s) hidden on this device.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
+                        state.blockedCommunityIds.forEach { id -> TextButton(onClick = { viewModel.unblockCommunityEntry(id) }) { Text("Unblock ${id.take(8)}") } }
                     }
                     if (leaderboard.myEntryId != null && leaderboard.entries.none { it.id == leaderboard.myEntryId }) {
                         Text("${leaderboard.nickname} · your score is outside the top 25 displayed here.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
@@ -164,6 +174,19 @@ fun WorkspaceLeaderboard(state: LetsStudyUiState, viewModel: LetsStudyViewModel,
             Text("Points are based on practice saved on this phone. The board refreshes only when you open it or tap Refresh.", style = MaterialTheme.typography.bodySmall, color = LetsStudyColors.Muted)
         }
     }
+    reportEntryId?.let { entryId ->
+        val entry = leaderboard.entries.firstOrNull { it.id == entryId }
+        ContentReportDialog("Report community profile", onDismiss = { reportEntryId = null }) { reason ->
+            viewModel.reportContent("community", entryId, reason, entry?.displayName.orEmpty())
+            reportEntryId = null
+        }
+    }
+    state.contentReportMessage?.let { message -> AlertDialog(
+        onDismissRequest = viewModel::clearContentReportMessage,
+        title = { Text("Community report") },
+        text = { Text(message) },
+        confirmButton = { TextButton(onClick = viewModel::clearContentReportMessage) { Text("OK") } },
+    ) }
     if (confirmLeave) AlertDialog(
         onDismissRequest = { confirmLeave = false },
         title = { Text("Leave the community board?") },

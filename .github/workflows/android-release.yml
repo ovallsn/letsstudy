@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 jobs:
-  signed-apk:
+  signed-build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
@@ -49,14 +49,28 @@ jobs:
           printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/letsstudy-release.jks"
           test -s "$RUNNER_TEMP/letsstudy-release.jks"
 
-      - name: Build signed release APK
+      - name: Build signed release APK and Play bundle
         working-directory: android
         env:
           LETSTUDY_RELEASE_STORE_FILE: ${{ runner.temp }}/letsstudy-release.jks
           LETSTUDY_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
           LETSTUDY_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           LETSTUDY_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease
+        run: ./gradlew :app:assembleRelease :app:bundleRelease
+
+      - name: Verify Play bundle signature
+        run: |
+          result="$(jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab)"
+          printf '%s\n' "$result"
+          grep -q 'jar verified' <<< "$result"
+
+      - name: Upload signed Play bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: letsstudy-signed-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload signed APK for review
         uses: actions/upload-artifact@v7

@@ -9,6 +9,7 @@ import {
 import {
   doc,
   getDoc,
+  serverTimestamp,
   setDoc,
   Timestamp,
   writeBatch,
@@ -55,6 +56,19 @@ test('a signed-in learner can save private study data only under their own UID',
 
   await assertSucceeds(setDoc(doc(alice.firestore(), 'users/alice/studyData/session'), { title: 'Private' }));
   await assertFails(setDoc(doc(bob.firestore(), 'users/alice/studyData/session'), { title: 'Private' }));
+});
+
+test('reports can be submitted without an account but cannot be read or changed by clients', async () => {
+  const guest = environment.unauthenticatedContext();
+  const other = environment.authenticatedContext('bob');
+  const report = doc(guest.firestore(), 'contentReports/12345678-1234-4234-8234-123456789012');
+  const record = { kind: 'generated', subjectId: 'question-1', reason: 'unsafe', excerpt: 'Example', createdAt: serverTimestamp() };
+  await assertSucceeds(setDoc(report, record));
+  await assertFails(getDoc(report));
+  await assertFails(getDoc(doc(other.firestore(), report.path)));
+  await assertFails(setDoc(report, { ...record, excerpt: 'Changed' }));
+  await assertFails(setDoc(doc(guest.firestore(), 'contentReports/12345678-1234-4234-8234-123456789013'), { ...record, excerpt: 'x'.repeat(501) }));
+  await assertFails(setDoc(doc(guest.firestore(), 'contentReports/12345678-1234-4234-8234-123456789014'), { ...record, kind: 'community' }));
 });
 
 test('a safe username can be reserved with its account profile', async () => {
@@ -133,4 +147,11 @@ test('a learner cannot publish a negative or unbounded current streak', async ()
 
 test('legacy public board entries can omit the current streak field', async () => {
   await assertSucceeds(createLeaderboardEntry(undefined));
+});
+
+test('a banned learner cannot publish a community entry', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'moderationBans/alice'), { reason: 'moderator action' });
+  });
+  await assertFails(createLeaderboardEntry(6));
 });
