@@ -108,7 +108,7 @@ Generated material can be incomplete or wrong. Check legal, medical, safety, and
 - The optional community board is separate from private study sync. Joining shares a chosen nickname and self-reported weekly points with signed-in learners. A profile-photo thumbnail is shared only after a separate opt-in. Email, study topics, answers, and account IDs are not included in the board entry.
 - The full profile photo remains in local app storage. The optional board receives only a small resized thumbnail; turning photo sharing off or leaving the board removes that public copy.
 - Adults can report generated questions, tutor answers and public community profiles. Community profiles can be hidden locally. Reports are private Firestore records that require an operator to review; see [moderation](docs/moderation.md).
-- The public [privacy policy](https://letsstudy.vallssolutions.com/privacy/) and [account deletion page](https://letsstudy.vallssolutions.com/delete-account/) are prepared under `site/`. These URLs must be deployed and verified before submitting to Play.
+- The public [privacy policy](https://letsstudy.vallssolutions.com/privacy/) and [account deletion page](https://letsstudy.vallssolutions.com/delete-account/) are published from `site/` on GitHub Pages. Both return HTTPS 200 responses; HTTPS enforcement is enabled. Recheck the links before submitting to Play if the hosting or domain configuration changes.
 
 ## Built for Android
 
