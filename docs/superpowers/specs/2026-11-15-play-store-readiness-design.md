@@ -2,14 +2,14 @@
 
 ## Intent
 
-Prepare the Android app and its public support material for a Google Play release under Valls Solutions LLC. The app should serve learners from age 9 upward internationally. The repository remains the source for Android code, Firebase rules, release automation, store assets, and public policy pages. Publication and live service configuration are separate release gates.
+Prepare the Android app and its public support material for a Google Play release under Valls Solutions. The app should serve learners from age 9 upward internationally. The repository remains the source for Android code, Firebase rules, release automation, store assets, and public policy pages. Publication and live service configuration are separate release gates.
 
 ## Product approach
 
 - A neutral age selection precedes access to the app. Ages 9–12 and 13–17 get a local study experience built from original, reviewed material. It must not initialize account sync, online AI, ChatGPT sign-in, file or URL import, dictation, or the community board. Ages 18+ keep the existing workspace.
 - The child experience must be useful on its own: short lessons, practice, explanations, local progress, and a clear way to erase progress. No login or personal profile is needed.
 - Adult learners may report generated content from the question, lesson, and tutor surfaces without leaving the app. Signed-in adults may report a community entry and hide it from their own board. Reports go to a restricted Firestore collection and have visible success and failure states. Community rules and a real review process accompany the feature.
-- Publishable privacy and account-deletion pages are prepared for `letsstudy.vallssolutions.com`, naming Valls Solutions LLC and `admin@vallssolutions.com`. The external deletion path must be actionable without installing the app; support must verify ownership before deleting data. No secrets or unauthenticated deletion endpoints are exposed.
+- Publishable privacy and account-deletion pages are prepared for `letsstudy.vallssolutions.com`, naming Valls Solutions and `admin@vallssolutions.com`. The external deletion path must be actionable without installing the app; support must verify ownership before deleting data. No secrets or unauthenticated deletion endpoints are exposed.
 - The release path produces a signed Android App Bundle using the existing upload key secrets. Play Console settings, Firebase production configuration, DNS, and signing key material are never committed.
 
 ## Constraints and decisions

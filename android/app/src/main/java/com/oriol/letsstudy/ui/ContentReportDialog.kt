@@ -28,7 +28,7 @@ fun ContentReportDialog(title: String, onDismiss: () -> Unit, onSubmit: (String)
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Choose why you are reporting this. A short excerpt is sent to Valls Solutions LLC for review.", style = MaterialTheme.typography.bodyMedium)
+                Text("Choose why you are reporting this. A short excerpt is sent to Valls Solutions for review.", style = MaterialTheme.typography.bodyMedium)
                 reasons.forEach { (value, label) ->
                     TextButton(onClick = { selected = value }) {
                         RadioButton(selected = selected == value, onClick = null)
